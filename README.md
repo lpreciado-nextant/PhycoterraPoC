@@ -31,6 +31,11 @@ receiving, and human inspection.
 
 Verified with **Node.js 24** and **npm 11**. From this directory:
 
+On Windows, you can instead double-click [`run-prototype.bat`](run-prototype.bat)
+to install dependencies and start the app. It requires Node.js and npm on `PATH`;
+close this app's development or preview servers before running it, because
+dependency installation replaces `node_modules`.
+
 ```powershell
 npm ci
 npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
