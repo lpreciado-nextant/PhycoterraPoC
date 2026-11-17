@@ -25,6 +25,8 @@ The build produces `dist`. Font assets and their license notices are included. T
 
 ## Demo walkthrough
 
+The workspace uses short labels and minimal helper text. Approval thresholds, locked amounts, inspection requirements, and demo safety notices remain visible where needed; the optional tour provides additional guidance.
+
 ### Optional guided showcase
 
 Choose **Guided walkthrough** in the top bar for an optional 22-step tour. It never starts automatically. Small popups explain the highlighted controls while the tour switches roles, queues, and request dialogs for you.
