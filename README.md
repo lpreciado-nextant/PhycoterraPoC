@@ -54,6 +54,10 @@ Open [http://127.0.0.1:5173](http://127.0.0.1:5173). Stop the foreground server 
 > [!NOTE]
 > The build produces `dist`. Font assets and their license notices are included. The app makes no runtime requests to the marketing site, font CDNs, or business services.
 
+### GitHub Pages
+
+Every push to `main` builds and deploys the prototype to **https://lpreciado-nextant.github.io/PhycoterraPoC/** through [the Pages workflow](.github/workflows/deploy.yml). Production builds use the `/PhycoterraPoC/` base path (see [vite.config.ts](vite.config.ts)), so the local preview is served at `http://127.0.0.1:4173/PhycoterraPoC/`.
+
 <br>
 
 ## 🧭 Demo walkthrough
