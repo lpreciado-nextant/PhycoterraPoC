@@ -1,18 +1,31 @@
 import { z } from 'zod'
 
-export const people = {
-  janet: { name: 'Janet / Purchasing (demo)', short: 'Janet', role: 'purchasing' },
-  field: { name: 'Demo Requester - Field Programs', short: 'Field Programs', role: 'requester' },
-  operations: { name: 'Demo Requester - Operations', short: 'Operations', role: 'requester' },
-  manager: { name: 'Demo Manager', short: 'Manager', role: 'approver' },
-} as const
-export type Person = keyof typeof people
 export const personSchema = z.enum(['janet', 'field', 'operations', 'manager'])
+export type Person = z.infer<typeof personSchema>
+export type Role = 'purchasing' | 'requester' | 'approver'
+export type Profile = { name: string; title: string; role: Role; manager?: Person }
+export const people: Record<Person, Profile> = {
+  janet: { name: 'Janet', title: 'Purchasing', role: 'purchasing' },
+  field: { name: 'Sarah Johnson', title: 'Field Programs Specialist', role: 'requester', manager: 'manager' },
+  operations: { name: 'Michael Chen', title: 'Operations Coordinator', role: 'requester', manager: 'manager' },
+  manager: { name: 'Jennifer Davis', title: 'Manager', role: 'approver' },
+}
+export const requesters = personSchema.options.filter(p => people[p].role === 'requester')
+export function managerOf(requester: Person): Person {
+  const manager = people[requester].manager
+  if (!manager) throw new Error(`${people[requester].name} has no assigned manager.`)
+  return manager
+}
+export function initials(person: Person): string {
+  return people[person].name.split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase()
+}
 export const categories = ['Packaging', 'Field supplies', 'QA equipment', 'Raw material', 'Facility supplies'] as const
 export const vendors = ['Demo Packaging Supply', 'Demo Field Supplies', 'Demo QA Equipment', 'Demo Materials Supply', 'Demo Facility Supplies']
 export const stages = ['Draft', 'Pending approval', 'Ready to purchase', 'Rejected'] as const
 export const statuses = [...stages, 'Ordered', 'Partially received', 'Inspection hold', 'Completed'] as const
 export type Status = typeof statuses[number]
+export const activities = ['Open', 'Closed'] as const
+export type Activity = typeof activities[number]
 const date = z.iso.date()
 const cents = z.number().int().positive().max(100_000_000)
 const quantity = z.number().int().positive().max(1_000_000)
@@ -77,19 +90,24 @@ export function status(request: Request): Status {
   if (outstanding(request)) return 'Partially received'
   return hasHold(request) ? 'Inspection hold' : 'Completed'
 }
+/** Open = still in progress. Closed = completed or rejected. */
+export function activity(request: Request): Activity {
+  const s = status(request)
+  return s === 'Completed' || s === 'Rejected' ? 'Closed' : 'Open'
+}
 export function overdue(request: Request, today = localDate()): boolean {
   return !!request.purchase && request.purchase.expected < today && outstanding(request) > 0
 }
 export function nextStep(request: Request): { owner: string; action: string } {
   switch (status(request)) {
-    case 'Draft': return { owner: people[request.requester].short, action: 'Complete and submit request' }
-    case 'Pending approval': return { owner: 'Manager', action: 'Review purchase request' }
+    case 'Draft': return { owner: people[request.requester].name, action: 'Complete and submit request' }
+    case 'Pending approval': return { owner: people[managerOf(request.requester)].name, action: 'Manager review of purchase request' }
     case 'Ready to purchase': return { owner: 'Janet', action: 'Record purchase' }
     case 'Ordered': return { owner: 'Janet', action: overdue(request) ? 'Follow up on overdue delivery' : 'Await delivery' }
     case 'Partially received': return { owner: 'Janet', action: hasHold(request) ? 'Review hold / receive remaining items' : 'Receive remaining items' }
     case 'Inspection hold': return { owner: 'Janet', action: 'Record manual inspection' }
-    case 'Completed': return { owner: people[request.requester].short, action: 'Delivered and documented' }
-    case 'Rejected': return { owner: people[request.requester].short, action: 'Review rejection reason' }
+    case 'Completed': return { owner: people[request.requester].name, action: 'Delivered and documented' }
+    case 'Rejected': return { owner: people[request.requester].name, action: 'Review rejection reason' }
   }
 }
 export function demand(condition: unknown, message: string): asserts condition {
@@ -107,14 +125,14 @@ export function validateRequest(request: Request) {
   demand(Number.isSafeInteger(total(request)) && total(request) <= 100_000_000, 'Request total must not exceed $1,000,000.')
   const approval = request.approval
   if (request.stage === 'Ready to purchase') {
-    demand(approval?.decision === (total(request) >= 100_000 ? 'Approved' : 'Not required'), 'Approval does not match the demo policy.')
+    demand(approval?.decision === (total(request) >= 100_000 ? 'Approved' : 'Not required'), 'Approval does not match the approval policy.')
   } else if (request.stage === 'Rejected') {
     demand(total(request) >= 100_000 && approval?.decision === 'Rejected' && approval.reason.trim(), 'Rejected requests need a manager decision and reason.')
   } else {
     demand(!approval && !request.purchase && !request.receipts.length, 'Draft or pending requests cannot have downstream activity.')
     if (request.stage === 'Pending approval') demand(total(request) >= 100_000, 'Below-threshold requests do not need approval.')
   }
-  if (approval && approval.decision !== 'Not required') demand(approval.actor === 'manager', 'Only the manager can approve or reject.')
+  if (approval && approval.decision !== 'Not required') demand(approval.actor === managerOf(request.requester), 'Only the requester\'s manager can approve or reject.')
   if (approval) demand(approval.at >= request.createdAt, 'Approval cannot precede creation.')
   if (request.purchase) {
     demand(request.stage === 'Ready to purchase', 'Purchase requires approval eligibility.')
@@ -179,19 +197,20 @@ export function transition(current: Request, action: Action, actor: Person, oper
       demand(request.needBy >= today, 'Choose a need-by date of today or later before submitting.')
       request.stage = total(request) >= 100_000 ? 'Pending approval' : 'Ready to purchase'
       if (request.stage === 'Ready to purchase') request.approval = { decision: 'Not required', actor, at, reason: 'Below the illustrative $1,000 threshold.' }
-      audience = [request.requester, request.stage === 'Pending approval' ? 'manager' : 'janet']
-      message = request.stage === 'Pending approval' ? 'Submitted for manager approval' : 'Submitted - approval not required under demo policy'
+      audience = [request.requester, request.stage === 'Pending approval' ? managerOf(request.requester) : 'janet']
+      message = request.stage === 'Pending approval' ? `Submitted for approval - assigned to ${people[managerOf(request.requester)].name}` : 'Submitted - manager approval not required'
     }
   } else if (action.type === 'approve' || action.type === 'reject') {
-    demand(actor === 'manager' && request.stage === 'Pending approval', 'Only the manager can decide a pending request.')
+    demand(request.stage === 'Pending approval', 'Only pending requests can be approved or rejected.')
+    demand(actor === managerOf(request.requester), `Only the requester's manager, ${people[managerOf(request.requester)].name}, can decide this request.`)
     const reason = action.type === 'reject' ? action.reason.trim() : ''
     demand(action.type !== 'reject' || reason.length > 0, 'Enter a rejection reason.')
     request.stage = action.type === 'approve' ? 'Ready to purchase' : 'Rejected'
     request.approval = { decision: action.type === 'approve' ? 'Approved' : 'Rejected', actor, at, reason }
-    message = action.type === 'approve' ? 'Manager approved the purchase' : `Manager rejected: ${reason}`
+    message = action.type === 'approve' ? `Approved by manager ${people[actor].name}` : `Rejected by manager ${people[actor].name}: ${reason}`
     audience = [request.requester, 'janet']
   } else {
-    demand(actor === 'janet', 'Switch to Janet / Purchasing to perform this action.')
+    demand(actor === 'janet', 'Switch to Janet (Purchasing) to perform this action.')
     if (action.type === 'order') {
       demand(request.stage === 'Ready to purchase' && !request.purchase, 'Only eligible, unpurchased requests can be ordered.')
       demand(action.purchase.date <= today, 'Purchase date cannot be in the future.')

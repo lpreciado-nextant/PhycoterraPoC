@@ -48,19 +48,19 @@ export function RequestForm({ existing, onSave, onCancel }: { existing?: Request
       <legend>Item {index + 1}</legend>
       <div className="form-grid">
         <label className="full">Item description<input aria-label={`Item ${index + 1} description`} value={l.description} onChange={e => editLine(l.id, { description: e.target.value })} required maxLength={200} /></label>
+        <label>Quantity<input aria-label={`Item ${index + 1} quantity`} type="number" min="1" max="1000000" step="1" value={l.quantity} onChange={e => editLine(l.id, { quantity: e.target.value })} required /></label>
+        <label>Units<input aria-label={`Item ${index + 1} units`} value={l.unit} onChange={e => editLine(l.id, { unit: e.target.value })} required maxLength={30} /></label>
         <label>Category<select aria-label={`Item ${index + 1} category`} value={l.category} onChange={e => {
           const category = categories.find(c => c === e.target.value)
           if (category) editLine(l.id, { category })
         }}>{categories.map(c => <option key={c}>{c}</option>)}</select></label>
-        <label>Unit<input aria-label={`Item ${index + 1} unit`} value={l.unit} onChange={e => editLine(l.id, { unit: e.target.value })} required maxLength={30} /></label>
-        <label>Quantity<input aria-label={`Item ${index + 1} quantity`} type="number" min="1" max="1000000" step="1" value={l.quantity} onChange={e => editLine(l.id, { quantity: e.target.value })} required /></label>
         <label>Unit price (USD)<input aria-label={`Item ${index + 1} unit price`} type="number" min="0.01" max="1000000" step="0.01" value={l.price} onChange={e => editLine(l.id, { price: e.target.value })} required /></label>
       </div>
       {l.category === 'Raw material' && <p className="hint">Manual inspection required before release. Use demo materials only.</p>}
       {lines.length > 1 && <button className="button text-button danger-text small" type="button" onClick={() => setLines(lines.filter(item => item.id !== l.id))}><Trash2 size={14} />Remove item {index + 1}</button>}
     </fieldset>)}
     <div className="total-block"><div><strong>Request total</strong><small>USD, excluding tax and freight</small></div><strong>{money(estimatedTotal)}</strong></div>
-    <p className="hint">{estimatedTotal >= 100000 ? 'Manager approval required' : 'No approval needed'} (demo threshold: $1,000). Whole quantities only.</p>
+    <p className="hint">{estimatedTotal >= 100000 ? 'Manager approval required' : 'Manager approval not required'} (threshold: $1,000). Whole quantities only.</p>
     <div className="form-actions" data-tour="request-submit"><button type="button" className="button secondary" onClick={onCancel}>Cancel</button><button name="intent" value="draft" className="button secondary" disabled={busy}>Save draft</button><button name="intent" value="submit" className="button primary" disabled={busy}>Submit request</button></div>
   </form>
 }

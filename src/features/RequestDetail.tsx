@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { Check, ClipboardCheck, FileText, Package, Pencil, ShieldCheck, Truck } from 'lucide-react'
-import { dateLabel, hasHold, localDate, money, nextStep, outstanding, overdue, people, received, status, total, vendors } from '../domain/workflow'
+import { activity, dateLabel, hasHold, localDate, managerOf, money, nextStep, outstanding, overdue, people, received, status, total, vendors } from '../domain/workflow'
 import type { Action, Person, Request } from '../domain/workflow'
 import { errorMessage } from '../data/storage'
 import { Badge, ErrorNotice } from '../components/ui'
@@ -27,23 +27,24 @@ function field(data: FormData, key: string): string { return String(data.get(key
 export function RequestDetail({ request, persona, onAction, onEdit }: { request: Request; persona: Person; onAction: Submit; onEdit: () => void }) {
   const currentStatus = status(request)
   const next = nextStep(request)
+  const manager = managerOf(request.requester)
   const canReceive = persona === 'janet' && !!request.purchase && outstanding(request) > 0
   const progress = request.lines.reduce((sum, l) => sum + received(request, l.id), 0)
   const orderedQty = request.lines.reduce((sum, l) => sum + l.quantity, 0)
   return <div className="stack">
     <div className="detail-intro"><div><span className="eyebrow">{request.id}</span><h3>{request.title}</h3><p>{request.justification}</p></div><strong className="detail-total">{money(total(request))}</strong></div>
-    <div className="badge-row"><Badge value={currentStatus} />{overdue(request) && <Badge value="Overdue" />}{hasHold(request) && currentStatus !== 'Inspection hold' && <Badge value="On hold" />}</div>
+    <div className="badge-row"><Badge value={activity(request)} /><Badge value={currentStatus} />{overdue(request) && <Badge value="Overdue" />}{hasHold(request) && currentStatus !== 'Inspection hold' && <Badge value="On hold" />}</div>
     <div className="next-action"><ClipboardCheck size={20} /><div><strong>{next.action}</strong><small>Owner: {next.owner} · Need by {dateLabel(request.needBy)}</small></div></div>
-    <dl className="detail-grid"><div><dt>Requester</dt><dd>{people[request.requester].name}</dd></div><div><dt>Requested</dt><dd>{dateLabel(request.createdAt)}</dd></div><div><dt>Preferred supplier</dt><dd>{request.vendor}</dd></div><div><dt>Quote reference</dt><dd>{request.quoteRef || 'Not provided'}</dd></div></dl>
+    <dl className="detail-grid"><div><dt>Requester</dt><dd>{people[request.requester].name} <small className="muted">· {people[request.requester].title}</small></dd></div><div><dt>Approving manager</dt><dd>{people[manager].name} <small className="muted">· {people[manager].title}</small></dd></div><div><dt>Requested</dt><dd>{dateLabel(request.createdAt)}</dd></div><div><dt>Preferred supplier</dt><dd>{request.vendor}</dd></div><div><dt>Quote reference</dt><dd>{request.quoteRef || 'Not provided'}</dd></div></dl>
     <section>
       <div className="section-heading"><h3>Requested items</h3><span className="muted">USD · no tax or freight</span></div>
       <div className="table-scroll"><table className="detail-table"><thead><tr><th>Item</th><th>Quantity</th><th>Unit price</th><th>Total</th>{request.purchase && <th>Received</th>}</tr></thead><tbody>
         {request.lines.map(l => <tr key={l.id}><td><strong>{l.description}</strong><small>{l.category}</small></td><td>{l.quantity} {l.unit}</td><td>{money(l.unitCents)}</td><td>{money(l.quantity * l.unitCents)}</td>{request.purchase && <td>{received(request, l.id)} / {l.quantity}</td>}</tr>)}
       </tbody></table></div>
     </section>
-    {request.approval && <div className="info-block" data-tour="approval-result"><ShieldCheck size={20} /><div><strong>{request.approval.decision === 'Not required' ? 'Approval not required under demo policy' : `Manager ${request.approval.decision.toLowerCase()}`}</strong><p>{request.approval.reason || `Decision recorded ${dateLabel(request.approval.at)}.`}</p></div></div>}
+    {request.approval && <div className="info-block" data-tour="approval-result"><ShieldCheck size={20} /><div><strong>{request.approval.decision === 'Not required' ? 'Manager approval not required' : `${request.approval.decision} by manager ${people[request.approval.actor].name}`}</strong><p>{request.approval.reason || `Decision recorded ${dateLabel(request.approval.at)}.`}{request.approval.decision !== 'Not required' && request.approval.reason && ` Decision recorded ${dateLabel(request.approval.at)}.`}</p></div></div>}
     {persona === request.requester && request.stage === 'Draft' && <button className="button primary" onClick={onEdit}><Pencil size={16} />Edit / submit draft</button>}
-    {persona === 'manager' && request.stage === 'Pending approval' && <section className="action-panel" data-tour="approval-actions"><h3><ShieldCheck size={18} />Manager decision</h3><p className="muted">Demo policy: approval required at $1,000+.</p>
+    {persona === manager && request.stage === 'Pending approval' && <section className="action-panel" data-tour="approval-actions"><h3><ShieldCheck size={18} />Manager decision</h3><p className="muted">Assigned to {people[manager].name}. Manager approval is required at $1,000+.</p>
       <div className="form-grid">
         <ActionForm onAction={onAction} build={() => ({ type: 'approve' })} label="Approve request"><p>Approve items totaling {money(total(request))}.</p></ActionForm>
         <ActionForm onAction={onAction} build={d => ({ type: 'reject', reason: field(d, 'reason') })} label="Reject request" danger><label>Rejection reason<textarea name="reason" required maxLength={300} rows={2} placeholder="Explain the decision to the requester" /></label></ActionForm>
@@ -75,7 +76,7 @@ export function RequestDetail({ request, persona, onAction, onEdit }: { request:
         <div className="form-grid">
           <label>Receipt date<input type="date" name="date" defaultValue={localDate()} min={request.purchase?.date} max={localDate()} required /></label>
           <label>Packing-list reference<input name="packing" placeholder="DEMO-PACKING-..." required maxLength={120} /></label>
-          <label>Delivery recipient<input name="recipient" placeholder="Demo Operations Recipient" required maxLength={120} /></label>
+          <label>Delivery recipient<input name="recipient" placeholder={people[request.requester].name} required maxLength={120} /></label>
           <label>Delivery location<input name="location" placeholder="Demo Supply Storage" required maxLength={120} /></label>
         </div>
       </ActionForm>
@@ -84,7 +85,7 @@ export function RequestDetail({ request, persona, onAction, onEdit }: { request:
       <h3 className="with-icon"><Package size={18} />Receipt & inspection history</h3>
       {request.receipts.map(receipt => <article className="receipt-card" key={receipt.id}>
         <div className="section-heading"><strong>{receipt.packingRef}</strong><span className="muted">{dateLabel(receipt.date)}</span></div>
-        <p className="muted">Received by {people[receipt.receiver].short} · {receipt.recipient} · {receipt.location}</p>
+        <p className="muted">Received by {people[receipt.receiver].name} · {receipt.recipient} · {receipt.location}</p>
         {receipt.lines.map(item => <div className="receipt-line" data-tour={item.disposition === 'Held' ? 'inspection' : undefined} key={item.lineId}>
           <strong>{request.lines.find(l => l.id === item.lineId)?.description} <span className="muted">× {item.quantity}</span></strong>
           <small>{item.disposition === 'Held' ? 'On hold - destination planned, not released' : 'Released to recipient'}</small>

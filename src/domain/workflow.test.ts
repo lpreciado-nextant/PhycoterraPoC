@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasHold, localDate, newDraft, outstanding, overdue, parseDataset, status, total, transition } from './workflow'
+import { activity, hasHold, localDate, managerOf, newDraft, outstanding, overdue, parseDataset, people, status, total, transition } from './workflow'
 import type { Action, Draft } from './workflow'
 import { seedData } from '../data/seed'
 
@@ -38,6 +38,8 @@ describe('approval and purchase rules', () => {
   it('requires the correct persona and a rejection reason; blocks rejected purchases', () => {
     const r = submitted()
     expect(() => transition(r, { type: 'approve' }, 'field', 'a', now)).toThrow('manager')
+    expect(() => transition(r, { type: 'approve' }, 'janet', 'a', now)).toThrow('Jennifer Davis')
+    expect(r.events.at(-1)?.audience).toContain('manager')
     expect(() => transition(r, { type: 'reject', reason: ' ' }, 'manager', 'r', now)).toThrow('reason')
     const rejected = transition(r, { type: 'reject', reason: 'Duplicate equipment' }, 'manager', 'reject', now)
     expect(status(rejected)).toBe('Rejected')
@@ -137,11 +139,41 @@ describe('website-informed scenario consistency', () => {
     const data = seedData(new Date(now))
     expect(parseDataset(data)).toEqual(data)
     expect(data.requests).toHaveLength(15)
-    expect(data.requests.map(total)).toEqual([48000, 36000, 120000, 30000, 125000, 150000, 50000, 72000, 32000, 180000, 120000, 100000, 165000, 30000, 28800])
+    expect(data.requests.map(total)).toEqual([48000, 36000, 120000, 30000, 125000, 150000, 50000, 120000, 32000, 180000, 120000, 100000, 165000, 30000, 28800])
     expect(new Set(data.requests.map(status))).toEqual(new Set(['Draft', 'Ready to purchase', 'Pending approval', 'Ordered', 'Partially received', 'Completed', 'Inspection hold', 'Rejected']))
     expect(data.requests.filter(r => overdue(r, today)).map(r => r.id)).toEqual(['DEMO-005'])
     expect(data.requests.filter(hasHold).map(r => r.id)).toEqual(['DEMO-010', 'DEMO-011'])
     expect(data.requests.filter(r => r.purchase).every(r => r.approval)).toBe(true)
+  })
+  it('assigns realistic managers and shows one manager-approved request in purchasing', () => {
+    const data = seedData(new Date(now))
+    expect(Object.values(people).map(p => p.name).join(' ')).not.toMatch(/Demo|Requester/)
+    for (const r of data.requests) {
+      if (r.approval && r.approval.decision !== 'Not required') expect(r.approval.actor).toBe(managerOf(r.requester))
+    }
+    const purchasing = data.requests.filter(r => status(r) === 'Ready to purchase')
+    expect(purchasing.map(r => r.approval?.decision).sort()).toEqual(['Approved', 'Not required'])
+    const approved = purchasing.find(r => r.approval?.decision === 'Approved')!
+    expect(approved.events.map(e => e.message)).toContain(`Approved by manager ${people[managerOf(approved.requester)].name}`)
+  })
+  it('has exactly two requesters who share one manager, each with end-to-end samples', () => {
+    const data = seedData(new Date(now))
+    const requesterIds = Object.entries(people).filter(([, p]) => p.role === 'requester').map(([id]) => id)
+    expect(requesterIds).toEqual(['field', 'operations'])
+    expect(Object.values(people).filter(p => p.role === 'approver').map(p => p.name)).toEqual(['Jennifer Davis'])
+    for (const id of ['field', 'operations'] as const) {
+      expect(managerOf(id)).toBe('manager')
+      const mine = data.requests.filter(r => r.requester === id)
+      expect(mine.some(r => status(r) === 'Pending approval')).toBe(true)
+      expect(mine.some(r => r.approval?.decision === 'Approved')).toBe(true)
+    }
+  })
+  it('classifies in-progress work as Open and finished requests as Closed', () => {
+    const data = seedData(new Date(now))
+    const inactive = data.requests.filter(r => activity(r) === 'Closed')
+    expect(inactive.map(status).every(s => s === 'Completed' || s === 'Rejected')).toBe(true)
+    expect(inactive.length).toBeGreaterThan(0)
+    expect(data.requests.length - inactive.length).toBeGreaterThan(0)
   })
   it('rejects corrupt versions and contradictory receipt/approval data', () => {
     const data = seedData(new Date(now))

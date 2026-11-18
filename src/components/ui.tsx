@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { AlertCircle, CheckCircle2, Circle, Clock3, PackageCheck, ShieldCheck, Truck, X } from 'lucide-react'
-import type { Status } from '../domain/workflow'
+import { Activity as ActivityIcon, AlertCircle, CheckCircle2, Circle, Clock3, PackageCheck, ShieldCheck, Truck, X } from 'lucide-react'
+import type { Activity, Status } from '../domain/workflow'
 
-export function Badge({ value }: { value: Status | 'Overdue' | 'On hold' }) {
-  const tone = value === 'Completed' || value === 'Ready to purchase' ? 'success' : value === 'Rejected' || value === 'Overdue' ? 'danger' : value === 'Inspection hold' || value === 'On hold' || value === 'Pending approval' ? 'warning' : 'neutral'
-  const Icon = value === 'Completed' ? CheckCircle2 : value === 'Ready to purchase' ? ShieldCheck : value === 'Ordered' ? Truck : value === 'Partially received' ? PackageCheck : tone === 'danger' ? AlertCircle : tone === 'warning' ? Clock3 : Circle
+export function Badge({ value }: { value: Status | Activity | 'Overdue' | 'On hold' }) {
+  const tone = value === 'Open' ? 'open' : value === 'Closed' ? 'closed' : value === 'Completed' || value === 'Ready to purchase' ? 'success' : value === 'Rejected' || value === 'Overdue' ? 'danger' : value === 'Inspection hold' || value === 'On hold' || value === 'Pending approval' ? 'warning' : 'neutral'
+  const Icon = value === 'Open' ? ActivityIcon : value === 'Closed' ? CheckCircle2 : value === 'Completed' ? CheckCircle2 : value === 'Ready to purchase' ? ShieldCheck : value === 'Ordered' ? Truck : value === 'Partially received' ? PackageCheck : tone === 'danger' ? AlertCircle : tone === 'warning' ? Clock3 : Circle
   return <span className={`badge ${tone}`}><Icon size={13} aria-hidden="true" />{value}</span>
 }
 export function Modal({ title, children, onClose, wide = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
