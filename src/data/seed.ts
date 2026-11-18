@@ -1,4 +1,4 @@
-import { localDate, newDraft, parseDataset, transition } from '../domain/workflow'
+import { localDate, managerOf, newDraft, parseDataset, people, transition } from '../domain/workflow'
 import type { Dataset, Line, Person, Request, Status } from '../domain/workflow'
 
 type Scenario = { title: string; description: string; quantity: number; unit: string; cents: number; category: Line['category']; vendor: string; state: Status; context: string }
@@ -10,7 +10,7 @@ const catalog: Scenario[] = [
   { title: 'Sample identification label stock', description: 'Blank label stock', quantity: 10, unit: 'rolls', cents: 12500, category: 'Packaging', vendor: 'Demo Packaging Supply', state: 'Ordered', context: 'Keep demonstration samples clearly identified.' },
   { title: 'Liquid-product tote fittings', description: 'Demonstration tote fittings', quantity: 10, unit: 'each', cents: 15000, category: 'Packaging', vendor: 'Demo Packaging Supply', state: 'Partially received', context: 'Support a liquid-product handling demonstration; not a production specification.' },
   { title: 'Foliar Treatment sample bottles', description: 'Sample bottles', quantity: 20, unit: 'packs', cents: 2500, category: 'Packaging', vendor: 'Demo Packaging Supply', state: 'Completed', context: 'Prepare a Foliar Treatment demonstration.' },
-  { title: 'Seed Treatment protective cartons', description: 'Protective cartons', quantity: 40, unit: 'each', cents: 1800, category: 'Packaging', vendor: 'Demo Packaging Supply', state: 'Ready to purchase', context: 'Protect Seed Treatment demonstration samples.' },
+  { title: 'Seed Treatment protective cartons', description: 'Protective cartons', quantity: 60, unit: 'each', cents: 2000, category: 'Packaging', vendor: 'Demo Packaging Supply', state: 'Ready to purchase', context: 'Protect Seed Treatment demonstration samples.' },
   { title: 'Residue Management plot markers', description: 'Plot markers', quantity: 10, unit: 'packs', cents: 3200, category: 'Field supplies', vendor: 'Demo Field Supplies', state: 'Draft', context: 'Identify plots in a Residue Management field demonstration.' },
   { title: 'Raw-material receiving practice A', description: 'DEMO-RM-A - generic placeholder', quantity: 10, unit: 'demo units', cents: 18000, category: 'Raw material', vendor: 'Demo Materials Supply', state: 'Inspection hold', context: 'Receiving practice only. This placeholder is not an actual PhycoTerra ingredient or material specification.' },
   { title: 'Raw-material split-delivery practice B', description: 'DEMO-RM-B - generic placeholder', quantity: 10, unit: 'demo units', cents: 12000, category: 'Raw material', vendor: 'Demo Materials Supply', state: 'Partially received', context: 'Practice split deliveries and manual inspection holds. Not an actual ingredient.' },
@@ -40,8 +40,8 @@ export function seedData(now = new Date()): Dataset {
     if (s.state === 'Draft') return request
     request = transition(request, { type: 'submit' }, requester, `${id}-submit`, stamp(-11))
     if (s.state === 'Pending approval') return request
-    if (s.state === 'Rejected') return transition(request, { type: 'reject', reason: 'Existing demo equipment is sufficient.' }, 'manager', `${id}-reject`, stamp(-10))
-    if (request.stage === 'Pending approval') request = transition(request, { type: 'approve' }, 'manager', `${id}-approve`, stamp(-10))
+    if (s.state === 'Rejected') return transition(request, { type: 'reject', reason: 'Existing label printer capacity is sufficient.' }, managerOf(requester), `${id}-reject`, stamp(-10))
+    if (request.stage === 'Pending approval') request = transition(request, { type: 'approve' }, managerOf(requester), `${id}-approve`, stamp(-10))
     if (s.state === 'Ready to purchase') return request
     request = transition(request, { type: 'order', purchase: {
       vendor: s.vendor, date: day(-8), expected: day(id === 'DEMO-005' ? -3 : 3),
@@ -51,7 +51,7 @@ export function seedData(now = new Date()): Dataset {
     if (s.state === 'Ordered') return request
     request = transition(request, { type: 'receive', receipt: {
       id: `${id}-receipt-1`, date: day(-2), packingRef: `DEMO-PACKING-${index + 1}-01`,
-      receiver: 'janet', recipient: 'Demo Operations Recipient', location: s.category === 'Raw material' ? 'Demo QA Bench' : 'Demo Supply Storage',
+      receiver: 'janet', recipient: people[requester].name, location: s.category === 'Raw material' ? 'Demo QA Bench' : 'Demo Supply Storage',
       lines: lines.map(l => ({ lineId: l.id, quantity: s.state === 'Partially received' ? 4 : l.quantity, disposition: l.category === 'Raw material' ? 'Held' : 'Not required', notes: l.category === 'Raw material' ? `DEMO-COA-${index + 1}: reference only; manual inspection pending.` : '' })),
     } }, 'janet', `${id}-receive`, stamp(-2))
     return request

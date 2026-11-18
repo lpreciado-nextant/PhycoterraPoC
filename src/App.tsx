@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDownLeft, ArrowRight, Bell, Check, ChevronRight, ClipboardList, Clock3, Compass, LayoutDashboard, PackageCheck, Plus, RotateCcw, Search, ShieldCheck, ShoppingCart, SlidersHorizontal, Sprout, Truck, X } from 'lucide-react'
+import { ArrowDownLeft, ArrowRight, Bell, Check, ChevronRight, ClipboardList, Clock3, Compass, LayoutDashboard, PackageCheck, Plus, Search, ShieldCheck, ShoppingCart, SlidersHorizontal, Truck, X } from 'lucide-react'
 import { Badge, EmptyState, ErrorNotice, Modal } from './components/ui'
 import { errorMessage, loadData, resetData, saveData } from './data/storage'
-import { categories, dateLabel, hasHold, money, newDraft, nextStep, overdue, people, personSchema, status, statuses, total, transition, vendors } from './domain/workflow'
-import type { Action, Dataset, Draft, Person, Request, Status } from './domain/workflow'
+import { activities, activity, categories, dateLabel, hasHold, initials, managerOf, money, newDraft, nextStep, overdue, people, personSchema, requesters, status, statuses, total, transition, vendors } from './domain/workflow'
+import type { Action, Activity, Dataset, Draft, Person, Request, Status } from './domain/workflow'
 import { RequestForm } from './features/RequestForm'
 import { RequestDetail } from './features/RequestDetail'
 import { GuidedTour } from './components/GuidedTour'
@@ -15,7 +15,7 @@ type View = WorkspaceView
 type Filter = 'All' | Status | 'Overdue' | 'On hold'
 const navigation = [
   { title: 'Overview', icon: LayoutDashboard },
-  { title: 'Requests', icon: ClipboardList },
+  { title: 'All Requests', icon: ClipboardList },
   { title: 'Approvals', icon: ShieldCheck },
   { title: 'Purchasing', icon: ShoppingCart },
   { title: 'Receiving', icon: PackageCheck },
@@ -55,6 +55,7 @@ export default function App() {
   const [workspaceCategory, setCategory] = useState('All')
   const [workspaceVendor, setVendor] = useState('All')
   const [workspaceRequester, setRequester] = useState('All')
+  const [workspaceActivity, setActivity] = useState<'All' | Activity>('All')
   const [toast, setToast] = useState('')
   const [resetError, setResetError] = useState('')
   const [tour, setTour] = useState<{ index: number; data: Dataset; scrollX: number; scrollY: number } | null>(null)
@@ -69,6 +70,7 @@ export default function App() {
   const category = tour ? 'All' : workspaceCategory
   const vendor = tour ? 'All' : workspaceVendor
   const requester = tour ? 'All' : workspaceRequester
+  const activityFilter = tour ? 'All' : workspaceActivity
 
   function startTour() {
     setTour({ index: 0, data: seedData(), scrollX: window.scrollX, scrollY: window.scrollY })
@@ -99,7 +101,7 @@ export default function App() {
     commit(current => ({
       ...current,
       requests: current.requests.map(r => r.id === id ? transition(r, action, persona, token) : r),
-    }), 'Saved locally. No external action.')
+    }), 'Request updated.')
   }
   function openForm(existing?: Request) {
     const next = Math.max(0, ...(dataRef.current?.requests.map(r => Number(r.id.replace('DEMO-', ''))) ?? [])) + 1
@@ -113,7 +115,7 @@ export default function App() {
       let updated = found ? transition(found, { type: 'edit', draft }, persona, `${dialog.token}-edit`) : newDraft(draft, persona, dialog.id)
       if (submit) updated = transition(updated, { type: 'submit' }, persona, `${dialog.token}-submit`)
       return { ...current, requests: found ? current.requests.map(r => r.id === updated.id ? updated : r) : [...current.requests, updated] }
-    }, submit ? 'Request submitted.' : 'Draft saved locally.')
+    }, submit ? 'Request submitted.' : 'Draft saved.')
     setDialog({ kind: 'detail', id: dialog.id })
   }
   function reset() {
@@ -130,9 +132,11 @@ export default function App() {
     } catch (error) { setResetError(`Reset failed. ${errorMessage(error)} Check browser storage permissions and try again.`) }
   }
   function navigate(target: View, statusFilter: Filter = 'All') {
-    setView(target); setFilter(statusFilter); setSearch(''); setVendor('All'); setCategory('All'); setRequester('All')
+    setView(target); setFilter(statusFilter); setSearch(''); setVendor('All'); setCategory('All'); setRequester('All'); setActivity('All')
   }
-  const scoped = (data?.requests ?? []).filter(r => people[persona].role !== 'requester' || r.requester === persona)
+  const role = people[persona].role
+  const scoped = (data?.requests ?? []).filter(r => role === 'purchasing' || (role === 'requester' ? r.requester === persona : managerOf(r.requester) === persona))
+  const visibleRequesters = requesters.filter(p => role === 'purchasing' || managerOf(p) === persona)
   const counts = {
     approval: scoped.filter(r => status(r) === 'Pending approval').length,
     purchasing: scoped.filter(r => status(r) === 'Ready to purchase').length,
@@ -150,6 +154,7 @@ export default function App() {
     if (category !== 'All' && !r.lines.some(l => l.category === category)) return false
     if (vendor !== 'All' && (r.purchase?.vendor ?? r.vendor) !== vendor) return false
     if (requester !== 'All' && r.requester !== requester) return false
+    if (activityFilter !== 'All' && activity(r) !== activityFilter) return false
     const query = search.toLowerCase().trim()
     return !query || [r.id, r.title, r.vendor, ...r.lines.map(l => l.description)].some(v => v.toLowerCase().includes(query))
   }).sort((a, b) => rank(a) - rank(b) || b.createdAt.localeCompare(a.createdAt))
@@ -177,35 +182,32 @@ export default function App() {
             return <button key={title} className={`nav-item ${view === title ? 'active' : ''}`} onClick={() => navigate(title)} aria-current={view === title ? 'page' : undefined}><Icon size={19} /><span>{title}</span>{count !== null && <span className="nav-count">{count}</span>}</button>
           })}
         </nav>
-        <div className="sidebar-bottom">
-          <div className="policy-card"><strong>Demo approval policy</strong><p>Under $1,000: no approval.<br />$1,000+: manager review.</p></div>
-          <button className="reset-button" onClick={() => { setResetError(''); setDialog({ kind: 'reset' }) }}><RotateCcw size={15} />Reset demo data</button>
-          <div className="local-label"><span />Saved locally</div>
-        </div>
       </div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><div className="breadcrumb">Workspace <ChevronRight size={14} /><strong>{view}</strong></div><div className="topbar-actions"><button ref={tourStartRef} data-tour="tour-start" className="button secondary small tour-launch" disabled={!!loadError || !!tour || !!workspaceDialog} onClick={startTour}><Compass size={16} />Guided walkthrough</button><span className="demo-pill"><span />{tour ? 'Tour · temporary samples' : 'Demo · synthetic data'}</span><button className="notification-button" aria-label={`Notifications (${notifications.length})`} onClick={() => setDialog({ kind: 'notifications' })}><Bell size={20} />{notifications.length > 0 && <span className="notification-dot" />}</button><div className="persona" data-tour="personas"><div className="avatar">{persona === 'janet' ? 'J' : persona === 'manager' ? 'M' : 'R'}</div><label><span>VIEWING AS</span><select aria-label="Demo persona" value={persona} onChange={e => { const p = personSchema.parse(e.target.value); setPersona(p); setDialog(null); navigate(people[p].role === 'requester' ? 'Requests' : 'Overview') }}>{Object.entries(people).map(([id, person]) => <option value={id} key={id}>{person.name}</option>)}</select></label></div></div></header>
+      <header className="topbar"><div className="breadcrumb">Workspace <ChevronRight size={14} /><strong>{view}</strong></div><div className="topbar-actions"><button ref={tourStartRef} data-tour="tour-start" className="button secondary small tour-launch" disabled={!!loadError || !!tour || !!workspaceDialog} onClick={startTour}><Compass size={16} />Guided walkthrough</button><button className="notification-button" aria-label={`Notifications (${notifications.length})`} onClick={() => setDialog({ kind: 'notifications' })}><Bell size={20} />{notifications.length > 0 && <span className="notification-dot" />}</button><div className="persona" data-tour="personas"><div className="avatar">{initials(persona)}</div><label><span>VIEWING AS</span><select aria-label="Viewing as" value={persona} onChange={e => { const p = personSchema.parse(e.target.value); setPersona(p); setDialog(null); navigate(people[p].role === 'requester' ? 'All Requests' : 'Overview') }}>{personSchema.options.map(id => <option value={id} key={id}>{people[id].name} – {people[id].title}</option>)}</select></label></div></div></header>
       <main id="main">
         {toast && !tour && <div className="toast" role="status"><Check size={17} /><span>{toast}</span><button className="icon-button" aria-label="Dismiss notification" onClick={() => setToast('')}><X size={15} /></button></div>}
         {loadError ? <section className="panel recovery"><ErrorNotice message={loadError} /><p>Your existing browser data has not been overwritten. Check storage permissions, or explicitly reset the demo to recover.</p><button className="button primary" onClick={() => setDialog({ kind: 'reset' })}>Reset demo data</button></section> : <>
-          <div className="page-heading" data-tour="welcome"><div>{view === 'Overview' && <div className="eyebrow">{dateLabel(clock.toISOString())}</div>}<h1>{view === 'Overview' ? `${greeting}, ${people[persona].short}.` : view}</h1></div>{people[persona].role === 'requester' && <button className="button primary" data-tour="new-request" onClick={() => openForm()}><Plus size={18} />New request</button>}</div>
+          <div className="page-heading" data-tour="welcome"><div>{view === 'Overview' && <div className="eyebrow">{dateLabel(clock.toISOString())}</div>}<h1>{view === 'Overview' ? `${greeting}, ${people[persona].name.split(' ')[0]}.` : view}</h1></div>{people[persona].role === 'requester' && <button className="button primary" data-tour="new-request" onClick={() => openForm()}><Plus size={18} />New request</button>}</div>
           {view === 'Overview' && <>
             <section className="metrics" data-tour="metrics" aria-label="Workflow summary">{cardMetrics.map(({ title, number, icon: Icon, tone, target, filter: f }) => <button className={`metric ${tone}`} key={title} onClick={() => navigate(target, f)}><div className="metric-top"><span>{title}</span><span className="metric-icon"><Icon size={19} /></span></div><div className="metric-bottom"><strong>{String(number).padStart(2, '0')}</strong><ArrowRight size={16} /></div></button>)}</section>
             {(counts.overdue > 0 || counts.holds > 0) && <div className="attention-strip"><span className="attention-icon"><Clock3 size={18} /></span><div><strong>{counts.overdue} overdue {counts.overdue === 1 ? 'delivery' : 'deliveries'} · {counts.holds} inspection {counts.holds === 1 ? 'hold' : 'holds'}</strong></div><button onClick={() => navigate('Receiving')} className="text-button">Review receiving <ArrowRight size={15} /></button></div>}
           </>}
           <section className="panel request-panel">
-            <div className="panel-heading"><div><h2>{view === 'Overview' ? 'Work queue' : view === 'Requests' ? 'Purchase requests' : `${view} queue`} <span className="count-pill">{pageItems.length}</span></h2></div>{view === 'Overview' && <button className="text-button" onClick={() => navigate('Requests')}>All requests <ArrowRight size={16} /></button>}</div>
+            <div className="panel-heading"><div><h2>{view === 'Overview' ? 'Work queue' : view === 'All Requests' ? 'Purchase requests' : `${view} queue`} <span className="count-pill">{pageItems.length}</span></h2></div>{view === 'Overview' && <button className="text-button" onClick={() => navigate('All Requests')}>All Requests <ArrowRight size={16} /></button>}</div>
             <div className="filters" data-tour="filters">
               <label className="search-field"><Search size={17} /><input type="search" aria-label="Search requests" placeholder="Search request, item, or supplier..." value={search} onChange={e => setSearch(e.target.value)} /></label>
               <label className="filter-field"><SlidersHorizontal size={15} /><select aria-label="Filter by status" value={filter} onChange={e => { const value = e.target.value; if (value === 'All' || value === 'Overdue' || value === 'On hold' || statuses.some(s => s === value)) setFilter(value as Filter) }}><option value="All">All statuses</option>{statuses.map(s => <option key={s}>{s}</option>)}<option>Overdue</option><option>On hold</option></select></label>
               <select aria-label="Filter by category" value={category} onChange={e => setCategory(e.target.value)}><option value="All">All categories</option>{categories.map(c => <option key={c}>{c}</option>)}</select>
               <select aria-label="Filter by supplier" value={vendor} onChange={e => setVendor(e.target.value)}><option value="All">All suppliers</option>{vendors.map(v => <option key={v}>{v}</option>)}</select>
-              {people[persona].role !== 'requester' && <select aria-label="Filter by requester" value={requester} onChange={e => setRequester(e.target.value)}><option value="All">All requesters</option><option value="field">Field Programs</option><option value="operations">Operations</option></select>}
+              <select aria-label="Filter by open or closed" value={activityFilter} onChange={e => { const value = activities.find(a => a === e.target.value); setActivity(value ?? 'All') }}><option value="All">Open &amp; closed</option>{activities.map(a => <option key={a}>{a}</option>)}</select>
+              {role !== 'requester' && <select aria-label="Filter by requester" value={requester} onChange={e => setRequester(e.target.value)}><option value="All">All requesters</option>{visibleRequesters.map(p => <option key={p} value={p}>{people[p].name}</option>)}</select>}
             </div>
-            {pageItems.length ? <div className="table-scroll"><table className="request-table"><thead><tr><th>Request / requester</th><th>Status</th><th>Next step / owner</th><th>Amount</th><th>Expected arrival</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>
+            {pageItems.length ? <div className="table-scroll"><table className="request-table"><thead><tr><th>Request / requester</th><th>Open / Closed</th><th>Status</th><th>Next step / owner</th><th>Amount (USD)</th><th>Expected arrival</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>
               {pageItems.map(r => <tr key={r.id} data-tour={`request-${r.id}`}>
-                <td><span className="request-id">{r.id}</span><button className="request-title" onClick={() => setDialog({ kind: 'detail', id: r.id })}>{r.title}</button><small>{people[r.requester].short} <span>·</span> {age(r, clock)}</small></td>
+                <td><span className="request-id">{r.id}</span><button className="request-title" onClick={() => setDialog({ kind: 'detail', id: r.id })}>{r.title}</button><small>{people[r.requester].name} <span>·</span> {age(r, clock)}</small></td>
+                <td><Badge value={activity(r)} /></td>
                 <td><div className="status-stack"><Badge value={status(r)} />{overdue(r) && <Badge value="Overdue" />}{hasHold(r) && status(r) !== 'Inspection hold' && <Badge value="On hold" />}</div></td>
                 <td><span className="next-step-text">{nextStep(r).action}</span><small>{nextStep(r).owner}</small></td>
                 <td className="amount">{money(total(r))}</td>
@@ -213,7 +215,6 @@ export default function App() {
                 <td><button className="icon-button" onClick={() => setDialog({ kind: 'detail', id: r.id })} aria-label={`Open ${r.id}`}><ChevronRight size={18} /></button></td>
               </tr>)}
             </tbody></table></div> : <EmptyState title="No requests" text="This queue is empty or your filters exclude all requests." />}
-            <div className="table-footer"><span>{pageItems.length} {pageItems.length === 1 ? 'request' : 'requests'} · {people[persona].role === 'requester' ? 'Your requests only' : 'All demo requesters'}</span><span>Amounts in USD, excluding tax & freight</span></div>
           </section>
           {view === 'Overview' && <div className="overview-bottom">
             <section className="panel" data-tour="suppliers"><div className="panel-heading"><div><h2>Supplier snapshot</h2><p>Recorded purchases, not invoices or payments.</p></div><span className="section-icon"><ShoppingCart size={18} /></span></div><div className="supplier-list">
@@ -222,9 +223,8 @@ export default function App() {
                 return <div className="supplier-row" key={v}><div className="supplier-avatar">{v.split(' ')[1].slice(0, 1)}</div><div className="supplier-name"><strong>{v}</strong><small>{orders.length} orders{orders.some(r => overdue(r)) ? ` · ${orders.filter(r => overdue(r)).length} overdue` : ''}</small></div><strong>{money(orders.reduce((sum, r) => sum + total(r), 0))}</strong></div>
               })}
             </div></section>
-            <section className="panel" data-tour="activity"><div className="panel-heading"><div><h2>Recent activity</h2></div><span className="section-icon"><Clock3 size={18} /></span></div><div className="activity-list">{recent.map(e => <button className="activity-item" key={`${e.request.id}-${e.id}`} onClick={() => setDialog({ kind: 'detail', id: e.request.id })}><span className="activity-icon"><ArrowDownLeft size={17} /></span><span><strong>{e.message}</strong><small>{e.request.id} · {people[e.actor].short} · {dateLabel(e.at)}</small></span><ChevronRight size={15} /></button>)}</div></section>
+            <section className="panel" data-tour="activity"><div className="panel-heading"><div><h2>Recent activity</h2></div><span className="section-icon"><Clock3 size={18} /></span></div><div className="activity-list">{recent.map(e => <button className="activity-item" key={`${e.request.id}-${e.id}`} onClick={() => setDialog({ kind: 'detail', id: e.request.id })}><span className="activity-icon"><ArrowDownLeft size={17} /></span><span><strong>{e.message}</strong><small>{e.request.id} · {people[e.actor].name} · {dateLabel(e.at)}</small></span><ChevronRight size={15} /></button>)}</div></section>
           </div>}
-          <footer className="workspace-footer"><span><Sprout size={15} />Local prototype</span><p>All data is fictional. Do not enter confidential data.</p><button className="text-button mobile-reset" onClick={() => { setResetError(''); setDialog({ kind: 'reset' }) }}><RotateCcw size={14} />Reset demo</button></footer>
         </>}
       </main>
     </div>

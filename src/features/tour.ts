@@ -1,7 +1,7 @@
 import type { Person } from '../domain/workflow'
 
-export type WorkspaceView = 'Overview' | 'Requests' | 'Approvals' | 'Purchasing' | 'Receiving'
-type Scene = { kind: 'detail'; id: string } | { kind: 'draft'; id: string } | { kind: 'notifications' } | { kind: 'reset' }
+export type WorkspaceView = 'Overview' | 'All Requests' | 'Approvals' | 'Purchasing' | 'Receiving'
+type Scene = { kind: 'detail'; id: string } | { kind: 'draft'; id: string } | { kind: 'notifications' }
 export type TourStep = {
   id: string
   title: string
@@ -22,7 +22,7 @@ export const tourSteps: TourStep[] = [
   },
   {
     id: 'personas', chapter: 'Your workspace', title: 'See each person’s part',
-    description: 'Requesters submit, the manager approves, and Janet purchases and receives. Switch demo roles here; this is not real authentication.',
+    description: 'Requesters submit, their assigned manager approves, and Janet purchases and receives. Switch roles here; this is not real authentication.',
     target: 'personas', persona: 'janet', view: 'Overview',
   },
   {
@@ -36,48 +36,48 @@ export const tourSteps: TourStep[] = [
     target: 'request-DEMO-005', persona: 'janet', view: 'Receiving', filter: 'Overdue',
   },
   {
-    id: 'filters', chapter: 'Requests', title: 'Find the right request',
-    description: 'Search by request, item, or supplier, then filter the results. Requests includes drafts, rejected requests, and completed work.',
-    target: 'filters', persona: 'janet', view: 'Requests',
+    id: 'filters', chapter: 'All Requests', title: 'Find the right request',
+    description: 'Search by request, item, or supplier, then filter the results. All Requests includes drafts, rejected requests, and completed work. Use the Open / Closed filter to separate work in progress from finished requests.',
+    target: 'filters', persona: 'janet', view: 'All Requests',
   },
   {
-    id: 'new-request', chapter: 'Requests', title: 'Start with the requester',
-    description: 'Operations sees only its own requests. New request opens the form; next, we will preview a sample draft without saving.',
-    target: 'new-request', persona: 'operations', view: 'Requests',
+    id: 'new-request', chapter: 'All Requests', title: 'Start with the requester',
+    description: 'Requesters such as Michael Chen (Operations) see only their own requests. New request opens the form; next, we will preview a sample draft without saving.',
+    target: 'new-request', persona: 'operations', view: 'All Requests',
   },
   {
-    id: 'request-info', chapter: 'Requests', title: 'Give purchasing the context',
+    id: 'request-info', chapter: 'All Requests', title: 'Give purchasing the context',
     description: 'Add a title, need-by date, supplier, and justification. Quote references are text only; suppliers and prices are fictional.',
-    target: 'request-info', persona: 'operations', view: 'Requests', scene: { kind: 'draft', id: 'DEMO-001' },
+    target: 'request-info', persona: 'operations', view: 'All Requests', scene: { kind: 'draft', id: 'DEMO-001' },
   },
   {
-    id: 'line-items', chapter: 'Requests', title: 'Build a clear itemized request',
-    description: 'Add items with a category, unit, whole-number quantity, and USD price. Raw materials require manual inspection after receipt.',
-    target: 'request-lines', persona: 'operations', view: 'Requests', scene: { kind: 'draft', id: 'DEMO-001' },
+    id: 'line-items', chapter: 'All Requests', title: 'Build a clear itemized request',
+    description: 'Add items with a whole-number quantity, units, category, and USD price. Raw materials require manual inspection after receipt.',
+    target: 'request-lines', persona: 'operations', view: 'All Requests', scene: { kind: 'draft', id: 'DEMO-001' },
   },
   {
-    id: 'submit', chapter: 'Requests', title: 'Save a draft or send it forward',
-    description: 'Save draft to edit later. Submit locks quantities and prices and applies the demo $1,000 approval threshold. Totals exclude tax and freight.',
-    target: 'request-submit', persona: 'operations', view: 'Requests', scene: { kind: 'draft', id: 'DEMO-001' },
+    id: 'submit', chapter: 'All Requests', title: 'Save a draft or send it forward',
+    description: 'Save draft to edit later. Submit locks quantities and prices and applies the $1,000 manager approval threshold. Totals exclude tax and freight.',
+    target: 'request-submit', persona: 'operations', view: 'All Requests', scene: { kind: 'draft', id: 'DEMO-001' },
   },
   {
     id: 'bypass', chapter: 'Approvals & purchasing', title: 'Small purchases keep moving',
-    description: 'This $360 request skips approval. Requests of $1,000 or more need a manager under the demo policy, not confirmed company policy.',
+    description: 'This $360 request shows Manager approval not required. Requests of $1,000 or more are routed to the requester’s manager.',
     target: 'approval-result', persona: 'janet', view: 'Purchasing', scene: { kind: 'detail', id: 'DEMO-002' },
   },
   {
     id: 'approval', chapter: 'Approvals & purchasing', title: 'A clear manager decision',
-    description: 'Only the manager can approve or reject. Approval unlocks purchasing; rejection requires a reason.',
+    description: 'Both requesters report to Jennifer Davis, so only Jennifer can approve or reject this request. Approval unlocks purchasing; rejection requires a reason.',
     target: 'approval-actions', persona: 'manager', view: 'Approvals', scene: { kind: 'detail', id: 'DEMO-003' },
   },
   {
     id: 'rejection', chapter: 'Approvals & purchasing', title: 'Keep rejection reasons visible',
     description: 'The rejection reason stays with the request and timeline. Rejected requests cannot be purchased or resubmitted.',
-    target: 'approval-result', persona: 'manager', view: 'Requests', scene: { kind: 'detail', id: 'DEMO-013' },
+    target: 'approval-result', persona: 'manager', view: 'All Requests', scene: { kind: 'detail', id: 'DEMO-013' },
   },
   {
     id: 'purchase', chapter: 'Approvals & purchasing', title: 'Record a PO or card purchase',
-    description: 'Janet records the supplier, dates, and PO or card reference. No orders, payments, or QuickBooks updates are sent. Never enter payment credentials.',
+    description: 'Jennifer Davis approved this $1,200 request, so it is now in Purchasing. Janet records the supplier, dates, and PO or card reference. No orders, payments, or QuickBooks updates are sent. Never enter payment credentials.',
     target: 'purchase-form', persona: 'janet', view: 'Purchasing', scene: { kind: 'detail', id: 'DEMO-008' },
   },
   {
@@ -93,12 +93,12 @@ export const tourSteps: TourStep[] = [
   {
     id: 'completion', chapter: 'Receiving & inspection', title: 'Close the loop on delivery',
     description: 'Completion requires full receipt and no held material. Delivery details and history remain available after completion.',
-    target: 'receipt-history', persona: 'janet', view: 'Requests', scene: { kind: 'detail', id: 'DEMO-014' },
+    target: 'receipt-history', persona: 'janet', view: 'All Requests', scene: { kind: 'detail', id: 'DEMO-014' },
   },
   {
     id: 'history', chapter: 'Visibility & control', title: 'Follow every handoff',
-    description: 'See who acted and when at each step. This is local demo history, not a tamper-proof audit log.',
-    target: 'timeline', persona: 'janet', view: 'Requests', scene: { kind: 'detail', id: 'DEMO-014' },
+    description: 'See who acted and when at each step. Manager approvals appear with the manager’s name. This is not a tamper-proof audit log.',
+    target: 'timeline', persona: 'janet', view: 'All Requests', scene: { kind: 'detail', id: 'DEMO-014' },
   },
   {
     id: 'notifications', chapter: 'Visibility & control', title: 'Keep each person informed',
@@ -116,13 +116,8 @@ export const tourSteps: TourStep[] = [
     target: 'activity', persona: 'janet', view: 'Overview',
   },
   {
-    id: 'persistence', chapter: 'Visibility & control', title: 'Saved locally, reset deliberately',
-    description: 'Edits stay in this browser. Reset requires confirmation and replaces only this app’s data. This tour does not reset anything.',
-    target: 'reset-info', persona: 'janet', view: 'Overview', scene: { kind: 'reset' },
-  },
-  {
     id: 'finish', chapter: 'Ready to explore', title: 'Your workspace is waiting',
-    description: 'Return to your saved workspace to try the workflow, or restart the tour anytime. This local prototype is not connected to Power Apps.',
+    description: 'Return to your workspace to try the workflow, or restart the tour anytime.',
     target: 'tour-start', persona: 'janet', view: 'Overview',
   },
 ]
