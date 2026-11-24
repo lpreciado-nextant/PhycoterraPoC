@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { Check, ClipboardCheck, FileText, Package, Pencil, ShieldCheck, Truck } from 'lucide-react'
-import { activity, dateLabel, hasHold, localDate, managerOf, money, nextStep, outstanding, overdue, people, received, status, total, vendors } from '../domain/workflow'
+import { Check, ClipboardCheck, FileText, Package, Pencil, Route, ShieldCheck, Truck } from 'lucide-react'
+import { activity, dateLabel, hasHold, journey, localDate, managerOf, money, nextStep, outstanding, overdue, people, received, status, total, vendors } from '../domain/workflow'
 import type { Action, Person, Request } from '../domain/workflow'
 import { errorMessage } from '../data/storage'
 import { Badge, ErrorNotice } from '../components/ui'
+import { Journey } from '../components/Journey'
 
 type Submit = (action: Action, operationId: string) => void
 function ActionForm({ children, onAction, build, label, danger = false }: { children: ReactNode; onAction: Submit; build: (fields: FormData) => Action; label: string; danger?: boolean }) {
@@ -34,6 +35,7 @@ export function RequestDetail({ request, persona, onAction, onEdit }: { request:
   return <div className="stack">
     <div className="detail-intro"><div><span className="eyebrow">{request.id}</span><h3>{request.title}</h3><p>{request.justification}</p></div><strong className="detail-total">{money(total(request))}</strong></div>
     <div className="badge-row"><Badge value={activity(request)} /><Badge value={currentStatus} />{overdue(request) && <Badge value="Overdue" />}{hasHold(request) && currentStatus !== 'Inspection hold' && <Badge value="On hold" />}</div>
+    <section data-tour="journey" className="stack compact"><h3 className="with-icon"><Route size={18} />Request journey</h3><Journey steps={journey(request)} /></section>
     <div className="next-action"><ClipboardCheck size={20} /><div><strong>{next.action}</strong><small>Owner: {next.owner} · Need by {dateLabel(request.needBy)}</small></div></div>
     <dl className="detail-grid"><div><dt>Requester</dt><dd>{people[request.requester].name} <small className="muted">· {people[request.requester].title}</small></dd></div><div><dt>Approving manager</dt><dd>{people[manager].name} <small className="muted">· {people[manager].title}</small></dd></div><div><dt>Requested</dt><dd>{dateLabel(request.createdAt)}</dd></div><div><dt>Preferred supplier</dt><dd>{request.vendor}</dd></div><div><dt>Quote reference</dt><dd>{request.quoteRef || 'Not provided'}</dd></div></dl>
     <section>

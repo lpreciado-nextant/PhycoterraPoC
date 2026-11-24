@@ -3,7 +3,7 @@ import type { Dataset } from '../domain/workflow'
 import { seedData } from './seed'
 import { ZodError } from 'zod'
 
-export const storageKey = 'phycoterra-purchasing-demo-v3'
+export const storageKey = 'phycoterra-purchasing-demo-v4'
 export function loadData(storage: Storage = localStorage): Dataset {
   const raw = storage.getItem(storageKey)
   if (raw === null) {
