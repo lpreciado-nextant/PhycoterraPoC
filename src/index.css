@@ -261,6 +261,55 @@ progress::-webkit-progress-value { background: #5a853a; }
 .tour-safety { display: flex; align-items: center; gap: 6px; color: #526647; font-size: 9px; margin-top: 15px; padding-top: 12px; border-top: 1px solid var(--border); }
 .tour-safety svg { flex-shrink: 0; }
 .tour-card > .tour-unavailable { color: #8d3329; background: #fff2ed; padding: 9px; border-radius: 4px; font-size: 11px; margin-top: 12px; }
+/* Request journey (lifecycle stepper) */
+.journey { list-style: none; margin: 0; padding: 18px 16px; display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; gap: 6px; background: #fafbf7; border: 1px solid var(--border); border-radius: 8px; }
+.journey li { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 0 4px; }
+.journey li:not(:last-child)::after { content: ''; position: absolute; top: 13px; left: calc(50% + 17px); right: calc(-50% + 17px); height: 2px; background: #d8e2cf; }
+.journey li.done:not(:last-child)::after, .journey li.skipped:not(:last-child)::after { background: #8ab56b; }
+.journey-marker { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; border: 2px solid #c8d2c1; background: white; color: white; flex-shrink: 0; }
+.journey li.done .journey-marker { background: var(--green); border-color: var(--green); }
+.journey li.current .journey-marker { border-color: var(--brand-lime); background: white; box-shadow: 0 0 0 5px #81c44d33; }
+.journey li.current .journey-marker::after { content: ''; width: 12px; height: 12px; border-radius: 50%; background: var(--brand-lime); animation: journey-pulse 1.6s ease-in-out infinite; }
+.journey li.skipped .journey-marker { border-style: dashed; color: #7e8a79; }
+.journey li.rejected .journey-marker { background: var(--danger); border-color: var(--danger); }
+.journey-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.journey-text strong { font-size: 12px; font-weight: 600; color: var(--brand-forest); }
+.journey-owner { font-size: 11px; font-weight: 500; color: #3c4a38; }
+.journey-text small { font-size: 10px; line-height: 1.4; }
+.journey li.current .journey-state { color: #3b622d; font-weight: 600; }
+.journey li.rejected .journey-state { color: var(--danger); font-weight: 600; }
+.journey li.upcoming .journey-text { opacity: .7; }
+@keyframes journey-pulse { 50% { transform: scale(.7); opacity: .6; } }
+.journey-compact { list-style: none; margin: 7px 0 0; padding: 0; display: flex; gap: 3px; }
+.journey-compact li { width: 14px; height: 4px; border-radius: 2px; background: #dfe4dc; }
+.journey-compact li.done, .journey-compact li.skipped { background: #8ab56b; }
+.journey-compact li.current { background: var(--brand-lime); box-shadow: 0 0 0 1px #5f9a37; }
+.journey-compact li.rejected { background: var(--danger); }
+/* Help tab */
+.help-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 22px; }
+.team-card { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.team-card header { display: flex; align-items: center; gap: 12px; }
+.team-card h2 { font-size: 16px; }
+.team-card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.5; }
+.team-card .team-sees { font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 12px; }
+.team-card.current { border-color: #8ab56b; box-shadow: inset 0 3px var(--brand-lime); }
+.help-section { padding: 0 22px 22px; display: flex; flex-direction: column; gap: 14px; }
+.help-rules { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.55; }
+.journey-guide .journey li.upcoming .journey-text { opacity: 1; }
+.journey-guide .journey-marker { border-color: #8ab56b; }
+.view-all { display: flex; justify-content: center; padding: 12px; border-top: 1px solid var(--border); }
+@media (max-width: 1000px) {
+  .help-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .journey { grid-auto-flow: row; grid-auto-columns: auto; gap: 0; padding: 14px; }
+  .journey li { flex-direction: row; text-align: left; align-items: flex-start; gap: 12px; padding: 0 0 14px; }
+  .journey li:last-child { padding-bottom: 0; }
+  .journey li:not(:last-child)::after { top: 30px; bottom: 0; left: 13px; right: auto; width: 2px; height: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .journey li.current .journey-marker::after { animation: none; }
+}
 @media (min-width: 1600px) {
   :root { font-size: 15px; }
   .request-title, .amount { font-size: 14px; }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activity, hasHold, localDate, managerOf, newDraft, outstanding, overdue, parseDataset, people, status, total, transition } from './workflow'
+import { activity, closedAt, hasHold, journey, localDate, managerOf, newDraft, outstanding, overdue, parseDataset, people, status, total, transition, visibleTo } from './workflow'
 import type { Action, Draft } from './workflow'
 import { seedData } from '../data/seed'
 
@@ -138,11 +138,11 @@ describe('website-informed scenario consistency', () => {
   it('seeds all supported states with valid approvals, quantities, chronology and totals', () => {
     const data = seedData(new Date(now))
     expect(parseDataset(data)).toEqual(data)
-    expect(data.requests).toHaveLength(15)
-    expect(data.requests.map(total)).toEqual([48000, 36000, 120000, 30000, 125000, 150000, 50000, 120000, 32000, 180000, 120000, 100000, 165000, 30000, 28800])
+    expect(data.requests).toHaveLength(9)
+    expect(data.requests.map(total)).toEqual([48000, 36000, 120000, 125000, 150000, 120000, 180000, 165000, 30000])
     expect(new Set(data.requests.map(status))).toEqual(new Set(['Draft', 'Ready to purchase', 'Pending approval', 'Ordered', 'Partially received', 'Completed', 'Inspection hold', 'Rejected']))
-    expect(data.requests.filter(r => overdue(r, today)).map(r => r.id)).toEqual(['DEMO-005'])
-    expect(data.requests.filter(hasHold).map(r => r.id)).toEqual(['DEMO-010', 'DEMO-011'])
+    expect(data.requests.filter(r => overdue(r, today)).map(r => r.id)).toEqual(['DEMO-004'])
+    expect(data.requests.filter(hasHold).map(r => r.id)).toEqual(['DEMO-007'])
     expect(data.requests.filter(r => r.purchase).every(r => r.approval)).toBe(true)
   })
   it('assigns realistic managers and shows one manager-approved request in purchasing', () => {
@@ -156,17 +156,14 @@ describe('website-informed scenario consistency', () => {
     const approved = purchasing.find(r => r.approval?.decision === 'Approved')!
     expect(approved.events.map(e => e.message)).toContain(`Approved by manager ${people[managerOf(approved.requester)].name}`)
   })
-  it('has exactly two requesters who share one manager, each with end-to-end samples', () => {
+  it('has three teams with one person each and end-to-end samples', () => {
     const data = seedData(new Date(now))
-    const requesterIds = Object.entries(people).filter(([, p]) => p.role === 'requester').map(([id]) => id)
-    expect(requesterIds).toEqual(['field', 'operations'])
-    expect(Object.values(people).filter(p => p.role === 'approver').map(p => p.name)).toEqual(['Jennifer Davis'])
-    for (const id of ['field', 'operations'] as const) {
-      expect(managerOf(id)).toBe('manager')
-      const mine = data.requests.filter(r => r.requester === id)
-      expect(mine.some(r => status(r) === 'Pending approval')).toBe(true)
-      expect(mine.some(r => r.approval?.decision === 'Approved')).toBe(true)
-    }
+    expect(Object.values(people).map(p => p.team)).toEqual(['Requester team', 'Management', 'Purchasing team'])
+    expect(managerOf('field')).toBe('manager')
+    const mine = data.requests.filter(r => r.requester === 'field')
+    expect(mine).toHaveLength(data.requests.length)
+    expect(mine.some(r => status(r) === 'Pending approval')).toBe(true)
+    expect(mine.some(r => r.approval?.decision === 'Approved')).toBe(true)
   })
   it('classifies in-progress work as Open and finished requests as Closed', () => {
     const data = seedData(new Date(now))
@@ -178,10 +175,47 @@ describe('website-informed scenario consistency', () => {
   it('rejects corrupt versions and contradictory receipt/approval data', () => {
     const data = seedData(new Date(now))
     expect(() => parseDataset({ ...data, version: 2 })).toThrow('incompatible')
-    data.requests[9].receipts[0].lines[0].quantity = 11
+    data.requests[6].receipts[0].lines[0].quantity = 11
     expect(() => parseDataset(data)).toThrow('exceeds')
     const other = seedData(new Date(now))
     other.requests[4].approval = undefined
     expect(() => parseDataset(other)).toThrow('Approval')
+  })
+})
+describe('draft privacy', () => {
+  it('shows drafts only to their creator and submitted requests to the right teams', () => {
+    const d = newDraft(draft(), 'field', 'PRIVATE', now)
+    expect(visibleTo(d, 'field')).toBe(true)
+    expect(visibleTo(d, 'manager')).toBe(false)
+    expect(visibleTo(d, 'janet')).toBe(false)
+    const s = submitted()
+    expect(['field', 'manager', 'janet'].every(p => visibleTo(s, p as 'field'))).toBe(true)
+  })
+})
+describe('request journey', () => {
+  const states = (r: Parameters<typeof journey>[0]) => Object.fromEntries(journey(r).map(s => [s.key, s.state]))
+  it('marks the draft as the current stage', () => {
+    expect(states(newDraft(draft(), 'field', 'D', now))).toEqual({ request: 'current', approval: 'upcoming', purchase: 'upcoming', receive: 'upcoming', complete: 'upcoming' })
+  })
+  it('skips approval below the threshold and waits on the manager above it', () => {
+    expect(states(submitted(100, 1))).toMatchObject({ request: 'done', approval: 'skipped', purchase: 'current' })
+    expect(states(submitted())).toMatchObject({ approval: 'current', purchase: 'upcoming' })
+    expect(journey(submitted()).find(s => s.key === 'approval')?.owner).toBe('manager')
+  })
+  it('stops the journey at a rejection', () => {
+    const rejected = transition(submitted(), { type: 'reject', reason: 'Not needed' }, 'manager', 'reject', now)
+    expect(states(rejected)).toEqual({ request: 'done', approval: 'rejected', purchase: 'skipped', receive: 'skipped', complete: 'skipped' })
+    expect(closedAt(rejected)).toBe(now)
+  })
+  it('adds an inspection stage for raw materials and completes after release', () => {
+    const held = transition(ordered(true), receipt(10, 'raw', true), 'janet', 'receive', now)
+    expect(states(held)).toEqual({ request: 'done', approval: 'done', purchase: 'done', receive: 'done', inspect: 'current', complete: 'upcoming' })
+    const released = transition(held, { type: 'inspect', receiptId: 'raw', lineId: 'L1', pass: true, notes: 'Reviewed.' }, 'janet', 'pass', now)
+    expect(states(released)).toMatchObject({ inspect: 'done', complete: 'done' })
+  })
+  it('keeps receiving current for a partial delivery', () => {
+    const partial = transition(ordered(), receipt(4), 'janet', 'r1', now)
+    const step = journey(partial).find(s => s.key === 'receive')
+    expect(step).toMatchObject({ state: 'current', owner: 'janet', note: '4 of 10 received' })
   })
 })

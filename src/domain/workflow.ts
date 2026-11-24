@@ -1,15 +1,33 @@
 import { z } from 'zod'
 
-export const personSchema = z.enum(['janet', 'field', 'operations', 'manager'])
+export const personSchema = z.enum(['field', 'manager', 'janet'])
 export type Person = z.infer<typeof personSchema>
 export type Role = 'purchasing' | 'requester' | 'approver'
-export type Profile = { name: string; title: string; role: Role; manager?: Person }
+export type Team = 'Requester team' | 'Management' | 'Purchasing team'
+export type Profile = { name: string; title: string; role: Role; team: Team; manager?: Person }
 export const people: Record<Person, Profile> = {
-  janet: { name: 'Janet', title: 'Purchasing', role: 'purchasing' },
-  field: { name: 'Sarah Johnson', title: 'Field Programs Specialist', role: 'requester', manager: 'manager' },
-  operations: { name: 'Michael Chen', title: 'Operations Coordinator', role: 'requester', manager: 'manager' },
-  manager: { name: 'Jennifer Davis', title: 'Manager', role: 'approver' },
+  field: { name: 'Sarah Johnson', title: 'Field Programs Specialist', role: 'requester', team: 'Requester team', manager: 'manager' },
+  manager: { name: 'Jennifer Davis', title: 'Manager', role: 'approver', team: 'Management' },
+  janet: { name: 'Janet', title: 'Purchasing', role: 'purchasing', team: 'Purchasing team' },
 }
+/** Plain-language team descriptions shown in the Help tab. */
+export const teams: { team: Team; person: Person; summary: string; does: string[]; sees: string }[] = [
+  {
+    team: 'Requester team', person: 'field', summary: 'Asks for what the work needs.',
+    does: ['Creates and edits drafts', 'Submits requests with items, supplier and need-by date', 'Follows progress until delivery'],
+    sees: 'Only their own requests. Drafts stay private until submitted.',
+  },
+  {
+    team: 'Management', person: 'manager', summary: 'Approves larger purchases.',
+    does: ['Approves or rejects requests of $1,000 or more', 'Gives a reason when rejecting'],
+    sees: 'Submitted requests from their team. Never other people’s drafts.',
+  },
+  {
+    team: 'Purchasing team', person: 'janet', summary: 'Buys, receives and releases.',
+    does: ['Records the purchase order or card reference', 'Records deliveries, including partial ones', 'Inspects raw materials before release'],
+    sees: 'Every submitted request. Never other people’s drafts.',
+  },
+]
 export const requesters = personSchema.options.filter(p => people[p].role === 'requester')
 export function managerOf(requester: Person): Person {
   const manager = people[requester].manager
@@ -110,6 +128,53 @@ export function nextStep(request: Request): { owner: string; action: string } {
     case 'Rejected': return { owner: people[request.requester].name, action: 'Review rejection reason' }
   }
 }
+/** Who may see a request. Drafts are private to the requester who created them. */
+export function visibleTo(request: Request, persona: Person): boolean {
+  if (request.stage === 'Draft') return request.requester === persona
+  const role = people[persona].role
+  if (role === 'purchasing') return true
+  if (role === 'requester') return request.requester === persona
+  return managerOf(request.requester) === persona
+}
+/** When a finished (completed or rejected) request was closed. */
+export function closedAt(request: Request): string | undefined {
+  return activity(request) === 'Closed' ? request.events.at(-1)?.at : undefined
+}
+
+export type JourneyState = 'done' | 'current' | 'upcoming' | 'skipped' | 'rejected'
+export type JourneyStep = { key: string; label: string; owner: Person; state: JourneyState; at?: string; note?: string }
+/** The whole lifecycle of a request, with who owns each stage and where it is now. */
+export function journey(request: Request): JourneyStep[] {
+  const s = status(request)
+  const manager = managerOf(request.requester)
+  const rejected = s === 'Rejected'
+  const after = (state: JourneyState): JourneyState => rejected ? 'skipped' : state
+  const submittedAt = request.stage === 'Draft' ? undefined : request.events.find(e => e.message.startsWith('Submitted'))?.at
+  const approval = request.approval
+  const ordered = request.lines.reduce((sum, l) => sum + l.quantity, 0)
+  const got = ordered - (request.purchase ? outstanding(request) : ordered)
+  const lastReceipt = request.receipts.at(-1)?.date
+  const steps: JourneyStep[] = [
+    { key: 'request', label: 'Request', owner: request.requester, state: request.stage === 'Draft' ? 'current' : 'done', at: submittedAt ?? request.createdAt, note: request.stage === 'Draft' ? 'Draft' : 'Submitted' },
+    approval?.decision === 'Not required'
+      ? { key: 'approval', label: 'Approval', owner: manager, state: 'skipped', note: 'Not needed under $1,000' }
+      : approval?.decision === 'Approved'
+        ? { key: 'approval', label: 'Approval', owner: manager, state: 'done', at: approval.at, note: 'Approved' }
+        : approval?.decision === 'Rejected'
+          ? { key: 'approval', label: 'Approval', owner: manager, state: 'rejected', at: approval.at, note: 'Rejected' }
+          : { key: 'approval', label: 'Approval', owner: manager, state: s === 'Pending approval' ? 'current' : 'upcoming', note: total(request) >= 100_000 ? 'Required at $1,000+' : 'Not needed under $1,000' },
+    { key: 'purchase', label: 'Purchase', owner: 'janet', state: request.purchase ? 'done' : after(s === 'Ready to purchase' ? 'current' : 'upcoming'), at: request.purchase?.date, note: request.purchase?.method },
+    { key: 'receive', label: 'Receive', owner: 'janet', state: !request.purchase ? after('upcoming') : outstanding(request) > 0 ? 'current' : 'done', at: request.purchase && !outstanding(request) ? lastReceipt : undefined, note: request.purchase ? `${got} of ${ordered} received` : undefined },
+  ]
+  if (request.lines.some(l => l.category === 'Raw material')) {
+    const inspected = request.receipts.flatMap(r => r.lines).map(l => l.inspectedAt).filter((v): v is string => !!v).sort().at(-1)
+    const fullyReleased = request.purchase && !outstanding(request) && !hasHold(request)
+    steps.push({ key: 'inspect', label: 'Inspect', owner: 'janet', state: hasHold(request) ? 'current' : fullyReleased ? 'done' : after('upcoming'), at: fullyReleased ? inspected : undefined, note: hasHold(request) ? 'Material on hold' : 'Raw material check' })
+  }
+  steps.push({ key: 'complete', label: 'Complete', owner: request.requester, state: s === 'Completed' ? 'done' : after('upcoming'), at: s === 'Completed' ? closedAt(request) : undefined, note: s === 'Completed' ? 'Delivered' : undefined })
+  return steps
+}
+
 export function demand(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
 }

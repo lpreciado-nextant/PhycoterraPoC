@@ -78,20 +78,20 @@ Choose **Guided walkthrough** in the top bar for an optional 22-step tour. It ne
 
 | Step | Viewing as | Action |
 | :---: | --- | --- |
-| **1** | **Janet / Purchasing (demo)** | Start here. The overview shows two pending approvals, two requests ready to purchase, one overdue delivery, and two inspection holds. The queue prioritizes overdue deliveries and holds. |
-| **2** | **Janet / Purchasing (demo)** | Select the overdue-delivery card to inspect **DEMO-005**, the fictional blank-label-stock order. |
-| **3** | **Demo Requester - Field Programs** or **Operations** | Choose **New request**. Request 200 empty demonstration jugs at $6 each ($1,200), using the Soil Amendment program as context. Submit. |
-| **4** | **Demo Manager** | Open the request from Approvals and approve. A rejection instead requires a reason and is terminal in this demo. |
-| **5** | **Janet / Purchasing (demo)** | Open Purchasing and record a PO reference and expected arrival. No order is sent. |
-| **6** | **Janet / Purchasing (demo)** | Record part of the received quantity, then the balance. Capture packing-list reference, receipt date, recipient, and destination. Overreceipt is blocked. |
-| **7** | **Janet / Purchasing (demo)** | Open **DEMO-011**, a generic raw-material placeholder with four of ten demo units received on hold. Record an inspection issue to keep the hold, or a manual pass with notes to release those four units. Receive the final six units; these need their own inspection pass before completion. |
-| **8** | Anyone | Show the activity timeline, bell notifications, and updated overview. Reload to demonstrate persistence. |
-| **9** | Anyone | Choose **Reset demo data** and confirm to restore the 15 original scenarios. On narrow screens, **Reset demo** is in the page footer. |
+| **1** | **Purchasing team – Janet** | Start here. The overview shows one pending approval, two requests ready to purchase, one overdue delivery, and one inspection hold. The work queue shows only the five most urgent requests; **View all** opens the full list. |
+| **2** | **Purchasing team – Janet** | Select the overdue-delivery card to inspect **DEMO-004**, the fictional blank-label-stock order. Its **Request journey** shows every stage, the owning team, and the current stage. |
+| **3** | **Requester team – Sarah Johnson** | Choose **New request**. Request 200 empty demonstration jugs at $6 each ($1,200). Save it as a draft first: switch teams and note that nobody else can see it. Then submit. |
+| **4** | **Management – Jennifer Davis** | Open the request from Approvals and approve. A rejection instead requires a reason and is terminal in this demo. |
+| **5** | **Purchasing team – Janet** | Open Purchasing and record a PO reference and expected arrival. No order is sent. |
+| **6** | **Purchasing team – Janet** | Record part of the received quantity, then the balance. Overreceipt is blocked. |
+| **7** | **Purchasing team – Janet** | Open **DEMO-007**, a generic raw-material placeholder on inspection hold. Record a manual pass with notes to release it and complete the request. |
+| **8** | Anyone | Open **History** to see completed and rejected requests, and **Help** for what each team does and the request lifecycle. |
+| **9** | Anyone | Choose **Reset demo data** and confirm to restore the 9 original scenarios. On narrow screens, **Reset demo** is in the page footer. |
 
-Switch personas with the **Viewing as** control in the top bar.
+Switch teams with the **Viewing as** control in the top bar. There are three teams with one person each: Requester team (Sarah Johnson), Management (Jennifer Davis), and Purchasing team (Janet). Drafts are visible only to the person who created them.
 
 > [!TIP]
-> For a quick no-approval path, submit a request below $1,000 or use DEMO-002/008. Record a credit-card **purchase reference**, never actual card details.
+> For a quick no-approval path, submit a request below $1,000 or use DEMO-002. Record a credit-card **purchase reference**, never actual card details.
 
 <br>
 
@@ -116,11 +116,11 @@ Switch personas with the **Viewing as** control in the top bar.
 
 ## 🌿 Synthetic data and source context
 
-The 15 scenarios cover Seed Treatment, Soil Amendment, Foliar Treatment, and Residue Management demonstration supplies; field-sampling materials; QA equipment; packaging; and routine facility supplies.
+The 9 scenarios, one per lifecycle stage, cover Seed Treatment and Soil Amendment demonstration supplies; field-sampling materials; QA equipment; packaging; and routine facility supplies.
 
 **Public context:** [PhycoTerra home](https://phycoterra.com/) · [Soil Amendment](https://phycoterra.com/products/phycoterra/) · [Seed Treatment](https://phycoterra.com/products/phycoterra-seed-treatment/)
 
-All transaction values, suppliers, destinations, and requests are fictional. Public product names provide context only. The company is not portrayed as purchasing its own products from invented suppliers. The generic DEMO-RM-A/B materials are **not actual ingredients, formulations, or material specifications**.
+All transaction values, suppliers, destinations, and requests are fictional. Public product names provide context only. The company is not portrayed as purchasing its own products from invented suppliers. The generic DEMO-RM-A material are **not actual ingredients, formulations, or material specifications**.
 
 Quotes, POs, packing slips, and COAs are reference-only metadata. There are no uploaded documents or fabricated safety certificates. Public SDS documents are not treated as supplier certificates of analysis. No real growers, customers, dealers, addresses, contact details, or testimonials are included.
 
@@ -172,11 +172,11 @@ The README artwork in [docs/assets](docs/assets/) embeds the same Bebas Neue and
 | Module | Responsibility |
 | --- | --- |
 | ⚖️ [Workflow domain](src/domain/workflow.ts) | Schemas, money/date helpers, state transitions, inspection rules, validation. |
-| 🌱 [Seed data](src/data/seed.ts) | All 15 website-informed scenarios, constructed with the same workflow functions used by the UI. |
+| 🌱 [Seed data](src/data/seed.ts) | All 9 website-informed scenarios, constructed with the same workflow functions used by the UI. |
 | 💾 [Storage](src/data/storage.ts) | Persistence, recovery, explicit error messages. |
 | 📝 [Request form](src/features/RequestForm.tsx) | Draft creation/editing and submission. |
 | 🔎 [Request detail](src/features/RequestDetail.tsx) | Approvals, purchasing, receipts, inspections, timeline. |
-| 🧩 [App](src/App.tsx) | Navigation, persona switching, queues/filters, overview, supplier summary, notifications. |
+| 🧩 [App](src/App.tsx) | Navigation, team switching, queues/filters, overview, history, help, supplier summary, notifications. |
 | 🎨 [Shared UI](src/components/ui.tsx) and [styles](src/index.css) | Dialogs, status presentation, brand tokens, responsive layout. |
 
 The focused Vitest suite covers approval thresholds, role guards, locked amounts, duplicate actions, invalid dates/quantities, partial and mixed-material receiving, inspection holds, overdue calculation, seed integrity, and persistence failures.
