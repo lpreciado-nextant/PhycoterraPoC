@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activity, closedAt, hasHold, journey, localDate, managerOf, newDraft, outstanding, overdue, parseDataset, people, status, total, transition, visibleTo } from './workflow'
+import { activity, awaitingAction, closedAt, hasHold, journey, localDate, managerOf, newDraft, outstanding, overdue, parseDataset, people, status, total, transition, visibleTo } from './workflow'
 import type { Action, Draft } from './workflow'
 import { seedData } from '../data/seed'
 
@@ -217,5 +217,23 @@ describe('request journey', () => {
     const partial = transition(ordered(), receipt(4), 'janet', 'r1', now)
     const step = journey(partial).find(s => s.key === 'receive')
     expect(step).toMatchObject({ state: 'current', owner: 'janet', note: '4 of 10 received' })
+  })
+})
+describe('awaiting action', () => {
+  it('routes each open request to the person who owns its current stage', () => {
+    const draftRequest = newDraft(draft(), 'field', 'TEST', now)
+    expect(['field', 'manager', 'janet'].map(p => awaitingAction(draftRequest, p as 'field'))).toEqual([true, false, false])
+    const pending = submitted()
+    expect(['field', 'manager', 'janet'].map(p => awaitingAction(pending, p as 'field'))).toEqual([false, true, false])
+    const ready = transition(pending, { type: 'approve' }, 'manager', 'approve', now)
+    expect(['field', 'manager', 'janet'].map(p => awaitingAction(ready, p as 'field'))).toEqual([false, false, true])
+    expect(awaitingAction(ordered(), 'janet')).toBe(true)
+    expect(awaitingAction(ordered(), 'field')).toBe(false)
+  })
+  it('never lists closed requests', () => {
+    const rejected = transition(submitted(), { type: 'reject', reason: 'Not needed' }, 'manager', 'reject', now)
+    expect(['field', 'manager', 'janet'].some(p => awaitingAction(rejected, p as 'field'))).toBe(false)
+    const data = seedData(new Date(now))
+    for (const r of data.requests.filter(r => activity(r) === 'Closed')) expect(['field', 'manager', 'janet'].some(p => awaitingAction(r, p as 'field'))).toBe(false)
   })
 })

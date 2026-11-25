@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowDownLeft, ArrowRight, Bell, Check, ChevronRight, CircleHelp, ClipboardList, Clock3, Compass, History, LayoutDashboard, PackageCheck, Plus, Search, ShieldCheck, ShoppingCart, SlidersHorizontal, Truck, X } from 'lucide-react'
 import { Badge, EmptyState, ErrorNotice, Modal } from './components/ui'
 import { errorMessage, loadData, resetData, saveData } from './data/storage'
-import { activities, activity, categories, closedAt, dateLabel, hasHold, initials, journey, managerOf, money, newDraft, nextStep, overdue, people, personSchema, requesters, status, statuses, total, transition, vendors, visibleTo } from './domain/workflow'
-import type { Action, Activity, Dataset, Draft, Person, Request, Status } from './domain/workflow'
+import { activity, awaitingAction, categories, closedAt, dateLabel, hasHold, initials, journey, managerOf, money, newDraft, nextStep, overdue, people, personSchema, requesters, status, statuses, total, transition, vendors, visibleTo } from './domain/workflow'
+import type { Action, Dataset, Draft, Person, Request, Status } from './domain/workflow'
 import { RequestForm } from './features/RequestForm'
 import { RequestDetail } from './features/RequestDetail'
 import { HelpPage } from './features/HelpPage'
@@ -17,14 +17,14 @@ type View = WorkspaceView
 type Filter = 'All' | Status | 'Overdue' | 'On hold'
 const navigation = [
   { title: 'Overview', icon: LayoutDashboard },
-  { title: 'All Requests', icon: ClipboardList },
+  { title: 'Open Requests', icon: ClipboardList },
   { title: 'Approvals', icon: ShieldCheck },
   { title: 'Purchasing', icon: ShoppingCart },
   { title: 'Receiving', icon: PackageCheck },
   { title: 'History', icon: History },
   { title: 'Help', icon: CircleHelp },
 ] as const
-const overviewLimit = 5
+const closedStatuses: Status[] = ['Completed', 'Rejected']
 type Dialog = { kind: 'detail'; id: string } | { kind: 'form'; existingId?: string; id: string; token: string } | { kind: 'notifications' } | { kind: 'reset' } | null
 function initialData(): { data: Dataset | null; error: string } {
   try { return { data: loadData(), error: '' } }
@@ -60,7 +60,6 @@ export default function App() {
   const [workspaceCategory, setCategory] = useState('All')
   const [workspaceVendor, setVendor] = useState('All')
   const [workspaceRequester, setRequester] = useState('All')
-  const [workspaceActivity, setActivity] = useState<'All' | Activity>('All')
   const [toast, setToast] = useState('')
   const [resetError, setResetError] = useState('')
   const [tour, setTour] = useState<{ index: number; data: Dataset; scrollX: number; scrollY: number } | null>(null)
@@ -75,7 +74,6 @@ export default function App() {
   const category = tour ? 'All' : workspaceCategory
   const vendor = tour ? 'All' : workspaceVendor
   const requester = tour ? 'All' : workspaceRequester
-  const activityFilter = tour ? 'All' : workspaceActivity
 
   function startTour() {
     setTour({ index: 0, data: seedData(), scrollX: window.scrollX, scrollY: window.scrollY })
@@ -137,7 +135,7 @@ export default function App() {
     } catch (error) { setResetError(`Reset failed. ${errorMessage(error)} Check browser storage permissions and try again.`) }
   }
   function navigate(target: View, statusFilter: Filter = 'All') {
-    setView(target); setFilter(statusFilter); setSearch(''); setVendor('All'); setCategory('All'); setRequester('All'); setActivity('All')
+    setView(target); setFilter(statusFilter); setSearch(''); setVendor('All'); setCategory('All'); setRequester('All')
   }
   const role = people[persona].role
   const scoped = (data?.requests ?? []).filter(r => visibleTo(r, persona))
@@ -151,7 +149,8 @@ export default function App() {
   }
   const pageItems = scoped.filter(r => {
     const s = status(r)
-    if (view === 'Overview' && (s === 'Completed' || s === 'Rejected')) return false
+    if (view === 'Overview' && !awaitingAction(r, persona)) return false
+    if (view === 'Open Requests' && activity(r) !== 'Open') return false
     if (view === 'Approvals' && s !== 'Pending approval') return false
     if (view === 'Purchasing' && s !== 'Ready to purchase') return false
     if (view === 'Receiving' && (!r.purchase || s === 'Completed')) return false
@@ -160,14 +159,14 @@ export default function App() {
     if (category !== 'All' && !r.lines.some(l => l.category === category)) return false
     if (vendor !== 'All' && (r.purchase?.vendor ?? r.vendor) !== vendor) return false
     if (requester !== 'All' && r.requester !== requester) return false
-    if (activityFilter !== 'All' && activity(r) !== activityFilter) return false
     const query = search.toLowerCase().trim()
     return !query || [r.id, r.title, r.vendor, ...r.lines.map(l => l.description)].some(v => v.toLowerCase().includes(query))
   }).sort((a, b) => view === 'History'
     ? (closedAt(b) ?? '').localeCompare(closedAt(a) ?? '')
     : rank(a) - rank(b) || b.createdAt.localeCompare(a.createdAt))
-  const shownItems = view === 'Overview' ? pageItems.slice(0, overviewLimit) : pageItems
+  const shownItems = pageItems
   const showFilters = view !== 'Overview'
+  const statusOptions = view === 'History' ? closedStatuses : statuses.filter(s => !closedStatuses.includes(s))
   const notifications = scoped.flatMap(r => r.events.filter(e => e.audience.includes(persona)).map(e => ({ ...e, request: r }))).sort((a, b) => b.at.localeCompare(a.at))
   const recent = scoped.flatMap(r => r.events.map(e => ({ ...e, request: r }))).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 4)
   const selected = dialog?.kind === 'detail' ? data?.requests.find(r => r.id === dialog.id && visibleTo(r, persona)) : undefined
@@ -195,7 +194,7 @@ export default function App() {
       </div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><div className="breadcrumb">Workspace <ChevronRight size={14} /><strong>{view}</strong></div><div className="topbar-actions"><button ref={tourStartRef} data-tour="tour-start" className="button secondary small tour-launch" disabled={!!loadError || !!tour || !!workspaceDialog} onClick={startTour}><Compass size={16} />Guided walkthrough</button><button className="notification-button" aria-label={`Notifications (${notifications.length})`} onClick={() => setDialog({ kind: 'notifications' })}><Bell size={20} />{notifications.length > 0 && <span className="notification-dot" />}</button><div className="persona" data-tour="personas"><div className="avatar">{initials(persona)}</div><label><span>VIEWING AS</span><select aria-label="Viewing as" value={persona} onChange={e => { const p = personSchema.parse(e.target.value); setPersona(p); setDialog(null); navigate(people[p].role === 'requester' ? 'All Requests' : 'Overview') }}>{personSchema.options.map(id => <option value={id} key={id}>{people[id].team} – {people[id].name}</option>)}</select></label></div></div></header>
+      <header className="topbar"><div className="breadcrumb">Workspace <ChevronRight size={14} /><strong>{view}</strong></div><div className="topbar-actions"><button ref={tourStartRef} data-tour="tour-start" className="button secondary small tour-launch" disabled={!!loadError || !!tour || !!workspaceDialog} onClick={startTour}><Compass size={16} />Guided walkthrough</button><button className="notification-button" aria-label={`Notifications (${notifications.length})`} onClick={() => setDialog({ kind: 'notifications' })}><Bell size={20} />{notifications.length > 0 && <span className="notification-dot" />}</button><div className="persona" data-tour="personas"><div className="avatar">{initials(persona)}</div><label><span>VIEWING AS</span><select aria-label="Viewing as" value={persona} onChange={e => { const p = personSchema.parse(e.target.value); setPersona(p); setDialog(null); navigate(people[p].role === 'requester' ? 'Open Requests' : 'Overview') }}>{personSchema.options.map(id => <option value={id} key={id}>{people[id].team} – {people[id].name}</option>)}</select></label></div></div></header>
       <main id="main">
         {toast && !tour && <div className="toast" role="status"><Check size={17} /><span>{toast}</span><button className="icon-button" aria-label="Dismiss notification" onClick={() => setToast('')}><X size={15} /></button></div>}
         {loadError ? <section className="panel recovery"><ErrorNotice message={loadError} /><p>Your existing browser data has not been overwritten. Check storage permissions, or explicitly reset the demo to recover.</p><button className="button primary" onClick={() => setDialog({ kind: 'reset' })}>Reset demo data</button></section> : <>
@@ -205,16 +204,15 @@ export default function App() {
             {(counts.overdue > 0 || counts.holds > 0) && <div className="attention-strip"><span className="attention-icon"><Clock3 size={18} /></span><div><strong>{counts.overdue} overdue {counts.overdue === 1 ? 'delivery' : 'deliveries'} · {counts.holds} inspection {counts.holds === 1 ? 'hold' : 'holds'}</strong></div><button onClick={() => navigate('Receiving')} className="text-button">Review receiving <ArrowRight size={15} /></button></div>}
           </>}
           {view === 'Help' ? <HelpPage persona={persona} /> : <section className="panel request-panel" data-tour={view === 'History' ? 'history' : undefined}>
-            <div className="panel-heading"><div><h2>{view === 'Overview' ? 'Work queue' : view === 'All Requests' ? 'Purchase requests' : view === 'History' ? 'Request history' : `${view} queue`} <span className="count-pill">{pageItems.length}</span></h2>{view === 'Overview' && pageItems.length > overviewLimit && <p>Showing the {overviewLimit} most urgent of {pageItems.length} open requests.</p>}</div>{view === 'Overview' && <button className="text-button" onClick={() => navigate('All Requests')}>All Requests <ArrowRight size={16} /></button>}</div>
+            <div className="panel-heading"><div><h2>{view === 'Overview' ? 'Awaiting your action' : view === 'Open Requests' ? 'Open purchase requests' : view === 'History' ? 'Request history' : `${view} queue`} <span className="count-pill">{pageItems.length}</span></h2>{view === 'Overview' && <p>Requests where you own the next step.</p>}</div>{view === 'Overview' && <button className="text-button" onClick={() => navigate('Open Requests')}>Open Requests <ArrowRight size={16} /></button>}</div>
             {showFilters && <div className="filters" data-tour="filters">
               <label className="search-field"><Search size={17} /><input type="search" aria-label="Search requests" placeholder="Search request, item, or supplier..." value={search} onChange={e => setSearch(e.target.value)} /></label>
-              <label className="filter-field"><SlidersHorizontal size={15} /><select aria-label="Filter by status" value={filter} onChange={e => { const value = e.target.value; if (value === 'All' || value === 'Overdue' || value === 'On hold' || statuses.some(s => s === value)) setFilter(value as Filter) }}><option value="All">All statuses</option>{statuses.map(s => <option key={s}>{s}</option>)}<option>Overdue</option><option>On hold</option></select></label>
+              <label className="filter-field"><SlidersHorizontal size={15} /><select aria-label="Filter by status" value={filter} onChange={e => { const value = e.target.value; if (value === 'All' || value === 'Overdue' || value === 'On hold' || statuses.some(s => s === value)) setFilter(value as Filter) }}><option value="All">All statuses</option>{statusOptions.map(s => <option key={s}>{s}</option>)}{view !== 'History' && <><option>Overdue</option><option>On hold</option></>}</select></label>
               <select aria-label="Filter by category" value={category} onChange={e => setCategory(e.target.value)}><option value="All">All categories</option>{categories.map(c => <option key={c}>{c}</option>)}</select>
               <select aria-label="Filter by supplier" value={vendor} onChange={e => setVendor(e.target.value)}><option value="All">All suppliers</option>{vendors.map(v => <option key={v}>{v}</option>)}</select>
-              <select aria-label="Filter by open or closed" value={activityFilter} onChange={e => { const value = activities.find(a => a === e.target.value); setActivity(value ?? 'All') }}><option value="All">Open &amp; closed</option>{activities.map(a => <option key={a}>{a}</option>)}</select>
               {role !== 'requester' && view !== 'History' && <select aria-label="Filter by requester" value={requester} onChange={e => setRequester(e.target.value)}><option value="All">All requesters</option>{visibleRequesters.map(p => <option key={p} value={p}>{people[p].name}</option>)}</select>}
             </div>}
-            {!shownItems.length ? <EmptyState title="No requests" text={view === 'History' ? 'Completed and rejected requests will appear here.' : 'This queue is empty or your filters exclude all requests.'} />
+            {!shownItems.length ? <EmptyState title="No requests" text={view === 'History' ? 'Completed and rejected requests will appear here.' : view === 'Overview' ? 'Nothing is waiting on you right now.' : 'This queue is empty or your filters exclude all requests.'} />
             : view === 'History' ? <div className="table-scroll"><table className="request-table"><thead><tr><th>Request / requester</th><th>Outcome</th><th>Journey</th><th>Supplier</th><th>Amount (USD)</th><th>Closed on</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>
               {shownItems.map(r => <tr key={r.id} data-tour={`request-${r.id}`}>
                 <td><span className="request-id">{r.id}</span><button className="request-title" onClick={() => setDialog({ kind: 'detail', id: r.id })}>{r.title}</button><small>{people[r.requester].name}</small></td>
@@ -226,10 +224,9 @@ export default function App() {
                 <td><button className="icon-button" onClick={() => setDialog({ kind: 'detail', id: r.id })} aria-label={`Open ${r.id}`}><ChevronRight size={18} /></button></td>
               </tr>)}
             </tbody></table></div>
-            : <div className="table-scroll"><table className="request-table"><thead><tr><th>Request / requester</th><th>Open / Closed</th><th>Status / journey</th><th>Next step / owner</th><th>Amount (USD)</th><th>Expected arrival</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>
+            : <div className="table-scroll"><table className="request-table"><thead><tr><th>Request / requester</th><th>Status / journey</th><th>Next step / owner</th><th>Amount (USD)</th><th>Expected arrival</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>
               {shownItems.map(r => <tr key={r.id} data-tour={`request-${r.id}`}>
                 <td><span className="request-id">{r.id}</span><button className="request-title" onClick={() => setDialog({ kind: 'detail', id: r.id })}>{r.title}</button><small>{people[r.requester].name} <span>·</span> {age(r, clock)}</small></td>
-                <td><Badge value={activity(r)} /></td>
                 <td><div className="status-stack"><Badge value={status(r)} />{overdue(r) && <Badge value="Overdue" />}{hasHold(r) && status(r) !== 'Inspection hold' && <Badge value="On hold" />}</div><Journey steps={journey(r)} compact /></td>
                 <td><span className="next-step-text">{nextStep(r).action}</span><small>{nextStep(r).owner}</small></td>
                 <td className="amount">{money(total(r))}</td>
@@ -237,7 +234,6 @@ export default function App() {
                 <td><button className="icon-button" onClick={() => setDialog({ kind: 'detail', id: r.id })} aria-label={`Open ${r.id}`}><ChevronRight size={18} /></button></td>
               </tr>)}
             </tbody></table></div>}
-            {view === 'Overview' && pageItems.length > overviewLimit && <div className="view-all"><button className="text-button" onClick={() => navigate('All Requests', 'All')}>View all {pageItems.length} open requests <ArrowRight size={16} /></button></div>}
           </section>}
           {view === 'Overview' && <div className="overview-bottom">
             <section className="panel" data-tour="suppliers"><div className="panel-heading"><div><h2>Supplier snapshot</h2><p>Recorded purchases, not invoices or payments.</p></div><span className="section-icon"><ShoppingCart size={18} /></span></div><div className="supplier-list">
