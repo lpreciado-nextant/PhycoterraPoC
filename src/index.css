@@ -297,7 +297,6 @@ progress::-webkit-progress-value { background: #5a853a; }
 .help-rules { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.55; }
 .journey-guide .journey li.upcoming .journey-text { opacity: 1; }
 .journey-guide .journey-marker { border-color: #8ab56b; }
-.view-all { display: flex; justify-content: center; padding: 12px; border-top: 1px solid var(--border); }
 @media (max-width: 1000px) {
   .help-grid { grid-template-columns: 1fr; }
 }

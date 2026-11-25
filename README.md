@@ -78,7 +78,7 @@ Choose **Guided walkthrough** in the top bar for an optional 22-step tour. It ne
 
 | Step | Viewing as | Action |
 | :---: | --- | --- |
-| **1** | **Purchasing team – Janet** | Start here. The overview shows one pending approval, two requests ready to purchase, one overdue delivery, and one inspection hold. The work queue shows only the five most urgent requests; **View all** opens the full list. |
+| **1** | **Purchasing team – Janet** | Start here. The overview shows one pending approval, two requests ready to purchase, one overdue delivery, and one inspection hold. The **Awaiting your action** list shows only requests where Janet owns the next step; **Open Requests** lists everything still in progress. |
 | **2** | **Purchasing team – Janet** | Select the overdue-delivery card to inspect **DEMO-004**, the fictional blank-label-stock order. Its **Request journey** shows every stage, the owning team, and the current stage. |
 | **3** | **Requester team – Sarah Johnson** | Choose **New request**. Request 200 empty demonstration jugs at $6 each ($1,200). Save it as a draft first: switch teams and note that nobody else can see it. Then submit. |
 | **4** | **Management – Jennifer Davis** | Open the request from Approvals and approve. A rejection instead requires a reason and is terminal in this demo. |

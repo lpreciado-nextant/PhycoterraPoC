@@ -1,6 +1,6 @@
 import type { Person } from '../domain/workflow'
 
-export type WorkspaceView = 'Overview' | 'All Requests' | 'Approvals' | 'Purchasing' | 'Receiving' | 'History' | 'Help'
+export type WorkspaceView = 'Overview' | 'Open Requests' | 'Approvals' | 'Purchasing' | 'Receiving' | 'History' | 'Help'
 type Scene = { kind: 'detail'; id: string } | { kind: 'draft'; id: string } | { kind: 'notifications' }
 export type TourStep = {
   id: string
@@ -36,29 +36,29 @@ export const tourSteps: TourStep[] = [
     target: 'request-DEMO-004', persona: 'janet', view: 'Receiving', filter: 'Overdue',
   },
   {
-    id: 'filters', chapter: 'All Requests', title: 'Find the right request',
-    description: 'Search by request, item, or supplier, then filter the results. All Requests includes drafts, rejected requests, and completed work. Use the Open / Closed filter to separate work in progress from finished requests.',
-    target: 'filters', persona: 'janet', view: 'All Requests',
+    id: 'filters', chapter: 'Open Requests', title: 'Find the right request',
+    description: 'Search by request, item, or supplier, then filter the results. Open Requests lists every request still in progress, including drafts. Completed and rejected requests live in History.',
+    target: 'filters', persona: 'janet', view: 'Open Requests',
   },
   {
-    id: 'new-request', chapter: 'All Requests', title: 'Start with the requester',
+    id: 'new-request', chapter: 'Open Requests', title: 'Start with the requester',
     description: 'Requesters such as Sarah Johnson see only their own requests, and their drafts stay private until submitted. New request opens the form; next, we will preview a sample draft without saving.',
-    target: 'new-request', persona: 'field', view: 'All Requests',
+    target: 'new-request', persona: 'field', view: 'Open Requests',
   },
   {
-    id: 'request-info', chapter: 'All Requests', title: 'Give purchasing the context',
+    id: 'request-info', chapter: 'Open Requests', title: 'Give purchasing the context',
     description: 'Add a title, need-by date, supplier, and justification. Quote references are text only; suppliers and prices are fictional.',
-    target: 'request-info', persona: 'field', view: 'All Requests', scene: { kind: 'draft', id: 'DEMO-001' },
+    target: 'request-info', persona: 'field', view: 'Open Requests', scene: { kind: 'draft', id: 'DEMO-001' },
   },
   {
-    id: 'line-items', chapter: 'All Requests', title: 'Build a clear itemized request',
+    id: 'line-items', chapter: 'Open Requests', title: 'Build a clear itemized request',
     description: 'Add items with a whole-number quantity, units, category, and USD price. Raw materials require manual inspection after receipt.',
-    target: 'request-lines', persona: 'field', view: 'All Requests', scene: { kind: 'draft', id: 'DEMO-001' },
+    target: 'request-lines', persona: 'field', view: 'Open Requests', scene: { kind: 'draft', id: 'DEMO-001' },
   },
   {
-    id: 'submit', chapter: 'All Requests', title: 'Save a draft or send it forward',
+    id: 'submit', chapter: 'Open Requests', title: 'Save a draft or send it forward',
     description: 'Save draft to edit later. Submit locks quantities and prices and applies the $1,000 manager approval threshold. Totals exclude tax and freight.',
-    target: 'request-submit', persona: 'field', view: 'All Requests', scene: { kind: 'draft', id: 'DEMO-001' },
+    target: 'request-submit', persona: 'field', view: 'Open Requests', scene: { kind: 'draft', id: 'DEMO-001' },
   },
   {
     id: 'bypass', chapter: 'Approvals & purchasing', title: 'Small purchases keep moving',
@@ -73,7 +73,7 @@ export const tourSteps: TourStep[] = [
   {
     id: 'rejection', chapter: 'Approvals & purchasing', title: 'Keep rejection reasons visible',
     description: 'The rejection reason stays with the request and timeline. Rejected requests cannot be purchased or resubmitted.',
-    target: 'approval-result', persona: 'manager', view: 'All Requests', scene: { kind: 'detail', id: 'DEMO-008' },
+    target: 'approval-result', persona: 'manager', view: 'History', scene: { kind: 'detail', id: 'DEMO-008' },
   },
   {
     id: 'purchase', chapter: 'Approvals & purchasing', title: 'Record a PO or card purchase',
@@ -98,12 +98,12 @@ export const tourSteps: TourStep[] = [
   {
     id: 'completion', chapter: 'Receiving & inspection', title: 'Close the loop on delivery',
     description: 'Completion requires full receipt and no held material. Delivery details and history remain available after completion.',
-    target: 'receipt-history', persona: 'janet', view: 'All Requests', scene: { kind: 'detail', id: 'DEMO-009' },
+    target: 'receipt-history', persona: 'janet', view: 'History', scene: { kind: 'detail', id: 'DEMO-009' },
   },
   {
     id: 'history', chapter: 'Visibility & control', title: 'Follow every handoff',
     description: 'See who acted and when at each step. Manager approvals appear with the manager’s name. This is not a tamper-proof audit log.',
-    target: 'timeline', persona: 'janet', view: 'All Requests', scene: { kind: 'detail', id: 'DEMO-009' },
+    target: 'timeline', persona: 'janet', view: 'History', scene: { kind: 'detail', id: 'DEMO-009' },
   },
   {
     id: 'history-tab', chapter: 'Visibility & control', title: 'Finished work lives in History',

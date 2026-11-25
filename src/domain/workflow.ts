@@ -175,6 +175,11 @@ export function journey(request: Request): JourneyStep[] {
   return steps
 }
 
+/** True when an open request is waiting on this person: they own a current stage of its journey. */
+export function awaitingAction(request: Request, persona: Person): boolean {
+  return activity(request) === 'Open' && journey(request).some(step => step.state === 'current' && step.owner === persona)
+}
+
 export function demand(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
 }
